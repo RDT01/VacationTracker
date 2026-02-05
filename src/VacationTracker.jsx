@@ -259,6 +259,7 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
     if (activityRange) return activityRange.last;
     return trip.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   });
+  const [selectedBar, setSelectedBar] = useState(null);
 
   // Generate calendar grid for the month
   const generateMonthGrid = () => {
@@ -557,6 +558,48 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
     }
   };
 
+  const fmtDateTime = (str, tz) => {
+    if (!str) return '';
+    const d = new Date(str);
+    return d.toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short', timeZone: tz || undefined });
+  };
+
+  const getCalendarItemTooltip = (bar) => {
+    const item = bar.item;
+    const lines = [];
+    const add = (label, val) => { if (val != null && String(val).trim()) lines.push(`${label}: ${String(val).trim()}`); };
+    if (bar.type === 'flight') {
+      add('Airline', item.airline);
+      add('Flight', item.flightNumber);
+      add('Departure', item.departureAirport);
+      if (item.departureTime) add('Departure time', fmtDateTime(item.departureTime, item.departureTimezone));
+      add('Arrival', item.arrivalAirport);
+      if (item.arrivalTime) add('Arrival time', fmtDateTime(item.arrivalTime, item.arrivalTimezone));
+      add('Confirmation', item.confirmationNumber);
+      add('Price', item.price);
+    } else if (bar.type === 'hotel') {
+      add('Hotel', item.hotelName);
+      add('Check-in', item.checkInDate && formatDate(item.checkInDate));
+      add('Check-out', item.checkOutDate && formatDate(item.checkOutDate));
+      add('Room', item.roomType);
+      add('Address', item.address);
+      add('Confirmation', item.confirmationNumber);
+      add('Price', item.price);
+    } else {
+      const typeLabel = ITEM_TYPES.find(t => t.id === bar.type)?.label || bar.type;
+      add('Type', typeLabel);
+      add('Name', item.itemName || item.name);
+      add('Date', item.date && formatDate(item.date));
+      add('Time', item.timeFrom ? (item.timeTo ? `${item.timeFrom} – ${item.timeTo}` : item.timeFrom) : null);
+      add('Address', item.address);
+      add('Price', item.price);
+      add('Confirmation', item.confirmationNumber);
+      add('URL', item.url);
+      add('Notes', item.notes);
+    }
+    return lines.length ? lines.join('\n') : bar.displayText;
+  };
+
   const getEventColor = (color) => {
     const colors = {
       blue: 'bg-blue-500 text-white',
@@ -785,22 +828,59 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
                   key={bar.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onEditItem(bar.item)}
-                  onKeyDown={(e) => e.key === 'Enter' && onEditItem(bar.item)}
-                  className={`text-xs px-2 py-1 rounded-md flex items-center min-h-[24px] min-w-0 overflow-hidden break-words cursor-pointer hover:opacity-90 active:opacity-80 border border-gray-300 dark:border-gray-400 ${getEventColor(bar.color)}`}
+                  onClick={() => setSelectedBar(prev => prev?.id === bar.id ? null : bar)}
+                  onKeyDown={(e) => e.key === 'Enter' && setSelectedBar(prev => prev?.id === bar.id ? null : bar)}
+                  className={`text-xs px-2 py-1 rounded-md flex items-center min-h-[24px] min-w-0 overflow-hidden break-words cursor-pointer hover:opacity-90 active:opacity-80 border-2 transition-all group/bar relative ${selectedBar?.id === bar.id ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900 border-indigo-500 dark:border-indigo-400 scale-[1.02] shadow-lg' : 'border-gray-300 dark:border-gray-400'} ${getEventColor(bar.color)}`}
                   style={{
                     gridColumn: `${bar.startCol + 1} / ${bar.endCol + 1}`,
                     gridRow: barIdx + 2
                   }}
-                  title={`${bar.displayText} (click to edit)`}
+                  title="Click to view details"
                 >
-                  {bar.displayText}
+                  <span className="min-w-0 truncate flex-1">{bar.displayText}</span>
                 </div>
               ))}
             </div>
           );
         })}
       </div>
+
+      {/* Item detail popover - shown on click */}
+      {selectedBar && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setSelectedBar(null)} aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="pointer-events-auto bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-indigo-500 dark:border-indigo-400 max-w-[200px] w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 overflow-y-auto flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{selectedBar.displayText}</h3>
+                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">{getCalendarItemTooltip(selectedBar)}</pre>
+              </div>
+              <div className="flex gap-2 p-4 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                <button
+                  onClick={() => {
+                    onEditItem(selectedBar.item);
+                    setSelectedBar(null);
+                  }}
+                  className="p-2 rounded-full bg-white dark:bg-gray-800 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-600/30 transition-colors"
+                  title="Edit"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    onDeleteItem(selectedBar.item.id, selectedBar.type);
+                    setSelectedBar(null);
+                  }}
+                  className="p-2 rounded-full bg-white dark:bg-gray-800 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
