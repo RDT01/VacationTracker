@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { Calendar, Plane, Hotel, Plus, MapPin, ChevronRight, ChevronDown, ChevronUp, Trash2, Edit2, X, Home, Briefcase, User, CalendarDays, Download, Upload, Car, Ticket, Landmark, UtensilsCrossed, ShoppingBag, Star, Mic, DollarSign } from 'lucide-react';
+import { Calendar, Plane, Hotel, Plus, MapPin, ChevronRight, ChevronDown, ChevronUp, Trash2, Edit2, X, Home, Briefcase, User, CalendarDays, Download, Upload, Car, Ticket, Landmark, UtensilsCrossed, ShoppingBag, Star, Mic, DollarSign, Sun, Moon } from 'lucide-react';
 import DateInput from './DateInput';
 
 // Popular airlines
@@ -729,7 +729,7 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
       {/* Calendar Grid */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible">
         {/* Day headers */}
-        <div className="grid grid-cols-7 bg-gray-100 border-b border-gray-200">
+        <div className="grid grid-cols-7 bg-gray-100 border-b border-gray-200 dark:border-gray-500">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="p-3 text-center font-semibold text-gray-700 text-sm">
               {day}
@@ -743,9 +743,17 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
           return (
             <div
               key={weekIdx}
-              className="grid grid-cols-7 border-b border-gray-200 last:border-b-0 overflow-visible min-h-[100px]"
+              className="relative grid grid-cols-7 border-b border-gray-200 dark:border-gray-500 last:border-b-0 overflow-visible min-h-[100px]"
               style={{ gridTemplateRows: spanningBars.length > 0 ? `auto repeat(${spanningBars.length}, minmax(24px, auto))` : 'auto 1fr' }}
             >
+              {/* Vertical dividers - full height between columns */}
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={`vdiv-${weekIdx}-${i}`}
+                  className="absolute top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-500 pointer-events-none"
+                  style={{ left: `${(i / 7) * 100}%` }}
+                />
+              ))}
               {week.map((date, dayIdx) => {
                 const dateStr = date ? toLocalDateStr(date) : null;
                 const isToday = dateStr === today;
@@ -755,7 +763,7 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
                 return (
                   <div
                     key={dayIdx}
-                    className={`p-2 border-r border-gray-200 last:border-r-0 min-h-[32px] ${
+                    className={`p-2 min-h-[32px] ${
                       !date ? 'bg-gray-50' : ''
                     } ${inRange ? 'bg-indigo-50/30' : ''} ${hotelStay ? 'bg-purple-100/60' : ''} ${flightSpan ? 'bg-blue-100/60' : ''}`}
                     style={{ gridColumn: dayIdx + 1, gridRow: 1 }}
@@ -779,7 +787,7 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
                   tabIndex={0}
                   onClick={() => onEditItem(bar.item)}
                   onKeyDown={(e) => e.key === 'Enter' && onEditItem(bar.item)}
-                  className={`text-xs px-2 py-1 rounded-md flex items-center min-h-[24px] min-w-0 overflow-hidden break-words cursor-pointer hover:opacity-90 active:opacity-80 ${getEventColor(bar.color)}`}
+                  className={`text-xs px-2 py-1 rounded-md flex items-center min-h-[24px] min-w-0 overflow-hidden break-words cursor-pointer hover:opacity-90 active:opacity-80 border border-gray-300 dark:border-gray-400 ${getEventColor(bar.color)}`}
                   style={{
                     gridColumn: `${bar.startCol + 1} / ${bar.endCol + 1}`,
                     gridRow: barIdx + 2
@@ -861,8 +869,8 @@ const getAllTripsCostBreakdown = (trips) => {
   return { total, byType, pieData, totalBudget };
 };
 
-// TEST DEFAULT: Tersigni Italy Trip - loaded when no trips exist. Remove for production.
-const TERSIGNI_ITALY_TRIP = {
+// Default trip - loaded when app has no saved data. Contains all itinerary items created to date.
+const DEFAULT_TRIP_SEED = {
   id: 1,
   name: 'Tersigni Italy Trip',
   destination: 'Italy',
@@ -930,14 +938,16 @@ const TERSIGNI_ITALY_TRIP = {
   ]
 };
 
-// Use Tersigni Italy Trip as default when localStorage is empty. Remove TERSIGNI_ITALY_TRIP for production.
-const DEFAULT_TRIP = TERSIGNI_ITALY_TRIP;
+// Deep clone so each new instance gets an independent copy
+const getDefaultTrip = () => JSON.parse(JSON.stringify(DEFAULT_TRIP_SEED));
 
 export default function VacationTracker() {
   const [trips, setTrips] = useState(() => {
     const savedTrips = localStorage.getItem('tripTrackerTrips');
     const parsed = savedTrips ? JSON.parse(savedTrips) : [];
-    const normalized = parsed.length > 0 ? parsed.map(t => ({ ...t, activities: t.activities || [], budgetItems: t.budgetItems || [] })) : [DEFAULT_TRIP];
+    const normalized = parsed.length > 0
+      ? parsed.map(t => ({ ...t, activities: t.activities || [], budgetItems: t.budgetItems || [] }))
+      : [getDefaultTrip()];
     return normalized;
   });
   const [currentTrip, setCurrentTrip] = useState(null);
@@ -950,14 +960,21 @@ export default function VacationTracker() {
   const [tripViewTab, setTripViewTab] = useState('itinerary'); // 'itinerary' | 'budget'
   const [calendarExpanded, setCalendarExpanded] = useState(true);
   const [listExpanded, setListExpanded] = useState(true);
-  const [showAddBudgetItem, setShowAddBudgetItem] = useState(false);
-  const [newBudgetItem, setNewBudgetItem] = useState({ category: 'flight', amount: '' });
+  const [newBudgetCategory, setNewBudgetCategory] = useState('flight');
+  const [newBudgetAmount, setNewBudgetAmount] = useState('');
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      return localStorage.getItem('tripTrackerDarkMode') === 'true';
+    } catch { return false; }
+  });
   const [listSortOrder, setListSortOrder] = useState('group'); // 'group' | 'date'
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiInput, setAiInput] = useState('');
   const [aiListening, setAiListening] = useState(false);
   const [aiStatus, setAiStatus] = useState('');
   const aiRecognitionRef = useRef(null);
+  const aiKeepListeningRef = useRef(false);
+  const aiNetworkRetryCountRef = useRef(0);
   const [showTripsDropdown, setShowTripsDropdown] = useState(false);
   
   // Autocomplete states
@@ -984,6 +1001,17 @@ export default function VacationTracker() {
   useEffect(() => {
     localStorage.setItem('tripTrackerTrips', JSON.stringify(trips));
   }, [trips]);
+
+  // Apply dark mode to document and persist
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('tripTrackerDarkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('tripTrackerDarkMode', 'false');
+    }
+  }, [darkMode]);
 
   const exportData = () => {
     const backup = {
@@ -1261,14 +1289,28 @@ export default function VacationTracker() {
     }
   };
 
-  const addBudgetItem = () => {
-    const amt = parsePrice(String(newBudgetItem.amount || ''));
+  const addBudgetItem = (category, amount) => {
+    const amt = parsePrice(String(amount || ''));
     if (!amt || amt <= 0) return;
-    const items = (currentTrip.budgetItems || []).filter(b => b.category !== newBudgetItem.category);
-    items.push({ id: Date.now(), category: newBudgetItem.category, amount: amt });
+    const items = (currentTrip.budgetItems || []).filter(b => b.category !== category);
+    items.push({ id: Date.now(), category, amount: amt });
     updateTrip({ ...currentTrip, budgetItems: items });
-    setNewBudgetItem({ category: 'flight', amount: '' });
-    setShowAddBudgetItem(false);
+  };
+
+  const updateBudgetItemField = (id, field, value) => {
+    let items = currentTrip.budgetItems || [];
+    if (field === 'category') {
+      items = items.filter(b => b.id === id || b.category !== value);
+    }
+    items = items.map(b => {
+      if (b.id !== id) return b;
+      if (field === 'amount') {
+        const amt = parsePrice(String(value || ''));
+        return { ...b, amount: isNaN(amt) || amt < 0 ? 0 : amt };
+      }
+      return { ...b, category: value };
+    });
+    updateTrip({ ...currentTrip, budgetItems: items });
   };
 
   const deleteBudgetItem = (id) => {
@@ -1428,14 +1470,22 @@ export default function VacationTracker() {
 
   const toggleAIMic = () => {
     if (aiListening) {
-      if (aiRecognitionRef.current) aiRecognitionRef.current.stop();
+      aiKeepListeningRef.current = false;
+      if (aiRecognitionRef.current) {
+        try { aiRecognitionRef.current.abort(); } catch (_) {}
+        try { aiRecognitionRef.current.stop(); } catch (_) {}
+      }
       setAiListening(false);
       setAiStatus('');
       return;
     }
+    if (!window.isSecureContext && !window.location.hostname.includes('localhost')) {
+      setAiStatus('Microphone requires HTTPS. Use https:// or run on localhost.');
+      return;
+    }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setAiStatus('Speech recognition not supported in this browser');
+      setAiStatus('Speech recognition not supported. Try Chrome or Safari.');
       return;
     }
     let recognition = aiRecognitionRef.current;
@@ -1444,35 +1494,70 @@ export default function VacationTracker() {
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
       recognition.onresult = (e) => {
         let transcript = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          transcript += e.results[i][0].transcript;
+          const result = e.results[i];
+          if (result.isFinal && result[0]) transcript += result[0].transcript;
         }
         if (transcript.trim()) {
           setAiInput(prev => prev ? prev + ' ' + transcript.trim() : transcript.trim());
         }
       };
+      recognition.onstart = () => {
+        aiNetworkRetryCountRef.current = 0;
+        setAiStatus('Listening... Speak now. Click mic again to stop.');
+      };
       recognition.onend = () => {
-        if (aiRecognitionRef.current === recognition) {
+        if (aiRecognitionRef.current !== recognition) return;
+        if (!aiKeepListeningRef.current) {
           setAiListening(false);
+          return;
         }
+        setTimeout(() => {
+          if (!aiKeepListeningRef.current) return;
+          try {
+            recognition.start();
+          } catch (_) {}
+        }, 100);
       };
       recognition.onerror = (e) => {
-        if (e.error !== 'aborted') {
-          setAiListening(false);
-          setAiStatus('');
+        if (e.error === 'aborted') return;
+        if (e.error === 'network') {
+          aiNetworkRetryCountRef.current = (aiNetworkRetryCountRef.current || 0) + 1;
+          if (aiNetworkRetryCountRef.current < 3 && aiKeepListeningRef.current) {
+            setAiStatus('Network hiccup, retrying...');
+            setTimeout(() => {
+              if (!aiKeepListeningRef.current) return;
+              try { recognition.start(); } catch (_) {}
+            }, 500);
+            return;
+          }
         }
+        aiKeepListeningRef.current = false;
+        setAiListening(false);
+        const msg = {
+          'not-allowed': 'Microphone permission denied. Allow access in browser settings.',
+          'no-speech': 'No speech detected. Click mic to try again.',
+          'audio-capture': 'No microphone found.',
+          'network': 'Network issue. Speech recognition needs internet. Check connection and click mic to retry.',
+          'service-not-allowed': 'Speech recognition service not allowed.'
+        }[e.error] || `Error: ${e.error}`;
+        setAiStatus(msg);
       };
       aiRecognitionRef.current = recognition;
     }
+    aiKeepListeningRef.current = true;
+    aiNetworkRetryCountRef.current = 0;
     setAiListening(true);
-    setAiStatus('Listening... Click mic again to stop');
+    setAiStatus('Starting...');
     try {
       recognition.start();
     } catch (err) {
-      setAiStatus('Could not start. Ensure microphone is allowed.');
+      aiKeepListeningRef.current = false;
       setAiListening(false);
+      setAiStatus('Could not start. Allow microphone access and try again.');
     }
   };
 
@@ -1533,16 +1618,23 @@ export default function VacationTracker() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">TripTracker</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">TripTracker</h1>
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
             </div>
             
             <div className="flex items-center gap-2">
@@ -1551,7 +1643,7 @@ export default function VacationTracker() {
                 <div className="relative" ref={tripsDropdownRef}>
                   <button
                     onClick={() => setShowTripsDropdown(!showTripsDropdown)}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                   >
                     <Briefcase className="w-5 h-5" />
                     <span className="hidden sm:inline">My Trips</span>
@@ -1559,7 +1651,7 @@ export default function VacationTracker() {
                   </button>
                   
                   {showTripsDropdown && (
-                    <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
                       <div className="p-2">
                         {trips.map(trip => (
                           <button
@@ -1569,14 +1661,14 @@ export default function VacationTracker() {
                               setActiveTab('trips');
                               setShowTripsDropdown(false);
                             }}
-                            className="w-full text-left px-4 py-3 rounded-lg hover:bg-indigo-50 transition-colors group"
+                            className="w-full text-left px-4 py-3 rounded-lg hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors group"
                           >
-                            <div className="font-medium text-gray-900 group-hover:text-indigo-600">
+                            <div className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                               {trip.name}
                             </div>
-                            <div className="text-sm text-gray-600">{trip.destination}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{trip.destination}</div>
                             {trip.startDate && trip.endDate && (
-                              <div className="text-xs text-gray-500 mt-1">
+                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                 {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
                               </div>
                             )}
@@ -1639,7 +1731,7 @@ export default function VacationTracker() {
         {/* New Trip Modal */}
         {showNewTrip && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Plan New Trip</h2>
                 <button onClick={() => setShowNewTrip(false)} className="text-gray-400 hover:text-gray-600">
@@ -1732,7 +1824,7 @@ export default function VacationTracker() {
         {/* Edit Trip Modal */}
         {showEditTrip && editTripForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Edit Trip</h2>
                 <button
@@ -1834,7 +1926,7 @@ export default function VacationTracker() {
         {/* Add Item Modal */}
         {showAddItem && currentTrip && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
               {/* Fixed header */}
               <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 border-b border-gray-200">
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -2334,7 +2426,7 @@ export default function VacationTracker() {
         {/* AI / Tell AI Modal */}
         {showAIModal && currentTrip && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-500 flex items-center justify-center">
@@ -2465,7 +2557,7 @@ export default function VacationTracker() {
                 {trips.map(trip => (
                   <div
                     key={trip.id}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow cursor-pointer"
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => {
                       setCurrentTrip(trip);
                       setActiveTab('trips');
@@ -2540,7 +2632,7 @@ export default function VacationTracker() {
         {activeTab === 'trips' && currentTrip && (
           // Trip Detail View
           <div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h2 className="text-3xl font-bold text-gray-900 mb-2">{currentTrip.name}</h2>
@@ -2633,7 +2725,7 @@ export default function VacationTracker() {
             </div>
 
             {/* Collapsible Calendar Section */}
-            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <button
                 onClick={() => setCalendarExpanded(!calendarExpanded)}
                 className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-50 transition-colors"
@@ -2656,7 +2748,7 @@ export default function VacationTracker() {
             </div>
 
             {/* Collapsible List Section */}
-            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <button
                 onClick={() => setListExpanded(!listExpanded)}
                 className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-50 transition-colors"
@@ -2978,86 +3070,97 @@ export default function VacationTracker() {
 
             {tripViewTab === 'budget' && (
               <div className="mb-6 space-y-6">
-                {/* Add Budget Item */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-indigo-600" />
                     Budget Categories
                   </h3>
-                  <p className="text-sm text-gray-600 mb-4">Add budget amounts by category. Actual spending is pulled from your itinerary items (flights, hotels, activities with prices).</p>
-                  {!showAddBudgetItem ? (
-                    <button
-                      onClick={() => setShowAddBudgetItem(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Budget Category
-                    </button>
-                  ) : (
-                    <div className="flex flex-wrap gap-3 items-end">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <p className="text-sm text-gray-600 mb-6">Add budget amounts by category. Actual spending is pulled from your itinerary items (flights, hotels, activities with prices).</p>
+
+                  {/* Budget list - inline editable rows */}
+                  <div className="space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-center gap-4 py-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <div className="flex-1 min-w-0">Category</div>
+                      <div className="w-24 text-right">Budgeted</div>
+                      <div className="w-24 text-right">Actual</div>
+                      <div className="w-24 text-right">Variance</div>
+                      <div className="w-10"></div>
+                    </div>
+
+                    {/* Existing budget items - inline editable */}
+                    {(currentTrip.budgetItems || []).map(bi => {
+                      const actual = getActualForCategory(currentTrip, bi.category);
+                      const variance = actual - bi.amount;
+                      return (
+                        <div key={bi.id} className="flex items-center gap-4 py-3 px-4 rounded-lg hover:bg-gray-50/70 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <select
+                              value={bi.category}
+                              onChange={(e) => updateBudgetItemField(bi.id, 'category', e.target.value)}
+                              className="w-full px-3 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-gray-300"
+                            >
+                              {BUDGET_CATEGORIES.map(c => (
+                                <option key={c.id} value={c.id}>{c.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="w-24">
+                            <input
+                              type="text"
+                              value={bi.amount || ''}
+                              onChange={(e) => updateBudgetItemField(bi.id, 'amount', e.target.value)}
+                              placeholder="0"
+                              className="w-full px-3 py-2 text-sm text-right text-gray-700 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-gray-300"
+                            />
+                          </div>
+                          <div className="w-24 text-right text-sm text-gray-700">${actual.toLocaleString(0)}</div>
+                          <div className={`w-24 text-right text-sm font-medium ${variance > 0 ? 'text-red-600' : variance < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                            {variance > 0 ? '+' : ''}{variance === 0 ? '0' : `$${variance.toLocaleString(0)}`}
+                          </div>
+                          <div className="w-10 flex justify-end">
+                            <button onClick={() => deleteBudgetItem(bi.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Add new row */}
+                    <div className="flex items-center gap-4 py-3 px-4 rounded-lg bg-indigo-50/50 border border-indigo-100 border-dashed">
+                      <div className="flex-1 min-w-0">
                         <select
-                          value={newBudgetItem.category}
-                          onChange={(e) => setNewBudgetItem({ ...newBudgetItem, category: e.target.value })}
-                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          value={newBudgetCategory}
+                          onChange={(e) => setNewBudgetCategory(e.target.value)}
+                          className="w-full px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         >
                           {BUDGET_CATEGORIES.map(c => (
                             <option key={c.id} value={c.id}>{c.label}</option>
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Budget ($)</label>
+                      <div className="w-24">
                         <input
                           type="text"
-                          value={newBudgetItem.amount}
-                          onChange={(e) => setNewBudgetItem({ ...newBudgetItem, amount: e.target.value })}
-                          placeholder="e.g. 2000"
-                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 w-32"
+                          value={newBudgetAmount}
+                          onChange={(e) => setNewBudgetAmount(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { addBudgetItem(newBudgetCategory, newBudgetAmount); setNewBudgetAmount(''); } }}
+                          placeholder="Amount"
+                          className="w-full px-3 py-2 text-sm text-right text-gray-600 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-400"
                         />
                       </div>
-                      <button onClick={addBudgetItem} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Add</button>
-                      <button onClick={() => { setShowAddBudgetItem(false); setNewBudgetItem({ category: 'flight', amount: '' }); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Cancel</button>
+                      <div className="w-24"></div>
+                      <div className="w-24"></div>
+                      <div className="w-10 flex justify-end">
+                        <button
+                          onClick={() => { if (parsePrice(newBudgetAmount) > 0) { addBudgetItem(newBudgetCategory, newBudgetAmount); setNewBudgetAmount(''); } }}
+                          className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                          title="Add"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
-                  )}
-
-                  {/* Budget table */}
-                  {((currentTrip.budgetItems || []).length > 0) && (
-                    <div className="mt-6 overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-200">
-                            <th className="text-left py-3 font-medium text-gray-700">Category</th>
-                            <th className="text-right py-3 font-medium text-gray-700">Budgeted</th>
-                            <th className="text-right py-3 font-medium text-gray-700">Actual</th>
-                            <th className="text-right py-3 font-medium text-gray-700">Variance</th>
-                            <th className="w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(currentTrip.budgetItems || []).map(bi => {
-                            const label = BUDGET_CATEGORIES.find(c => c.id === bi.category)?.label || bi.category;
-                            const actual = getActualForCategory(currentTrip, bi.category);
-                            const variance = actual - bi.amount;
-                            return (
-                              <tr key={bi.id} className="border-b border-gray-100">
-                                <td className="py-3 font-medium text-gray-900">{label}</td>
-                                <td className="text-right py-3 text-gray-700">${bi.amount.toLocaleString(0)}</td>
-                                <td className="text-right py-3 text-gray-700">${actual.toLocaleString(0)}</td>
-                                <td className={`text-right py-3 font-medium ${variance > 0 ? 'text-red-600' : variance < 0 ? 'text-green-600' : 'text-gray-500'}`}>
-                                  {variance > 0 ? '+' : ''}{variance === 0 ? '0' : `$${variance.toLocaleString(0)}`}
-                                </td>
-                                <td className="py-3">
-                                  <button onClick={() => deleteBudgetItem(bi.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Remove"><Trash2 className="w-4 h-4" /></button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  </div>
 
                   {/* Summary & progress */}
                   {(() => {
@@ -3117,7 +3220,7 @@ export default function VacationTracker() {
 
         {activeTab === 'profile' && (
           <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
                   <User className="w-10 h-10 text-white" />
@@ -3210,7 +3313,7 @@ export default function VacationTracker() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex items-center justify-around">
             <button
@@ -3220,11 +3323,11 @@ export default function VacationTracker() {
               }}
               className={`flex-1 flex flex-col items-center py-3 transition-colors ${
                 activeTab === 'home' 
-                  ? 'text-indigo-600' 
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-indigo-600 dark:text-indigo-400' 
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
             >
-              <Home className={`w-6 h-6 mb-1 ${activeTab === 'home' ? 'fill-indigo-600' : ''}`} />
+              <Home className={`w-6 h-6 mb-1 ${activeTab === 'home' ? 'fill-indigo-600 dark:fill-indigo-400' : ''}`} />
               <span className="text-xs font-medium">Home</span>
             </button>
             
@@ -3235,11 +3338,11 @@ export default function VacationTracker() {
               }}
               className={`flex-1 flex flex-col items-center py-3 transition-colors ${
                 activeTab === 'trips' 
-                  ? 'text-indigo-600' 
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-indigo-600 dark:text-indigo-400' 
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
             >
-              <Briefcase className={`w-6 h-6 mb-1 ${activeTab === 'trips' ? 'fill-indigo-600' : ''}`} />
+              <Briefcase className={`w-6 h-6 mb-1 ${activeTab === 'trips' ? 'fill-indigo-600 dark:fill-indigo-400' : ''}`} />
               <span className="text-xs font-medium">Trips</span>
             </button>
             
@@ -3247,11 +3350,11 @@ export default function VacationTracker() {
               onClick={() => setActiveTab('profile')}
               className={`flex-1 flex flex-col items-center py-3 transition-colors ${
                 activeTab === 'profile' 
-                  ? 'text-indigo-600' 
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-indigo-600 dark:text-indigo-400' 
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
             >
-              <User className={`w-6 h-6 mb-1 ${activeTab === 'profile' ? 'fill-indigo-600' : ''}`} />
+              <User className={`w-6 h-6 mb-1 ${activeTab === 'profile' ? 'fill-indigo-600 dark:fill-indigo-400' : ''}`} />
               <span className="text-xs font-medium">Profile</span>
             </button>
           </div>

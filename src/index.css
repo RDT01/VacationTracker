@@ -2,53 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Date picker styling - match app design */
-.date-input-wrapper {
-  @apply w-full;
-}
-.date-input-wrapper .react-date-picker__wrapper {
-  @apply w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent;
-}
-.date-input-wrapper .react-date-picker__inputGroup {
-  @apply flex-1 min-w-0;
-}
-.date-input-wrapper .react-date-picker__inputGroup__input {
-  @apply outline-none border-none bg-transparent text-gray-900;
-}
-.date-input-wrapper .react-date-picker__inputGroup__input:invalid {
-  @apply text-gray-400;
-}
-.date-input-wrapper .react-date-picker__button {
-  @apply p-0 ml-2 text-gray-500 hover:text-indigo-600 transition-colors;
-}
-.date-input-wrapper .react-date-picker__calendar-button {
-  @apply p-1;
-}
-.date-input-calendar.react-calendar {
-  @apply border border-gray-200 rounded-xl shadow-lg mt-2 bg-white z-[60];
-}
-.date-input-calendar .react-calendar__tile {
-  @apply rounded-lg py-2 px-1 text-sm;
-}
-.date-input-calendar .react-calendar__tile--active {
-  @apply bg-indigo-600 text-white;
-}
-.date-input-calendar .react-calendar__tile--now {
-  @apply bg-indigo-100 text-indigo-800 font-medium;
-}
-.date-input-calendar .react-calendar__tile:disabled {
-  @apply text-gray-300;
-}
-.date-input-calendar .react-calendar__tile--hasActive {
-  @apply bg-indigo-100;
-}
-.date-input-calendar .react-calendar__month-view__weekdays {
-  @apply text-xs font-semibold text-gray-600;
-}
-.date-input-calendar .react-calendar__month-view__weekdays__weekday abbr {
-  @apply no-underline;
-}
-
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -56,6 +9,88 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode - light backgrounds to dark grey */
+.dark .bg-white {
+  @apply bg-gray-800;
+}
+.dark .bg-gray-50 {
+  @apply bg-gray-800;
+}
+.dark .bg-gray-100 {
+  @apply bg-gray-700;
+}
+.dark .bg-indigo-50,
+.dark .bg-indigo-50\/30,
+.dark .bg-indigo-50\/50 {
+  @apply bg-gray-700;
+}
+.dark .bg-blue-50,
+.dark .bg-blue-100\/60 {
+  @apply bg-gray-700;
+}
+.dark .bg-purple-100\/60 {
+  @apply bg-gray-700;
+}
+.dark .bg-indigo-100,
+.dark .bg-blue-100,
+.dark .bg-purple-100 {
+  @apply bg-gray-600;
+}
+.dark .hover\:bg-red-50:hover {
+  @apply bg-red-900/40;
+}
+.dark .border-gray-200 {
+  @apply border-gray-700;
+}
+.dark .border-gray-300 {
+  @apply border-gray-600;
+}
+.dark .border-indigo-100,
+.dark .border-indigo-200 {
+  @apply border-gray-600;
+}
+
+/* Dark mode - white/light text */
+.dark .text-gray-900 {
+  @apply text-white;
+}
+.dark .text-gray-700 {
+  @apply text-gray-200;
+}
+.dark .text-gray-600 {
+  @apply text-gray-300;
+}
+.dark .text-gray-500 {
+  @apply text-gray-400;
+}
+
+/* Dark mode - form elements */
+.dark input[type="text"],
+.dark input[type="date"],
+.dark input[type="email"],
+.dark input[type="number"],
+.dark select,
+.dark textarea {
+  @apply bg-gray-700 border-gray-600 text-white;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  @apply text-gray-400;
+}
+.dark option {
+  @apply bg-gray-700 text-white;
+}
+
+/* Dark mode - hover states */
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-gray-200:hover {
+  @apply bg-gray-600;
+}
+.dark .hover\:bg-indigo-50:hover {
+  @apply bg-gray-600;
 }
 
 code {
