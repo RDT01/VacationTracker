@@ -15,6 +15,10 @@ body {
 .dark .bg-white {
   @apply bg-gray-800;
 }
+/* Event cards (flight, hotel, activity) - lighter than container to stand out */
+.dark .itinerary-item-card.bg-white {
+  @apply bg-gray-700;
+}
 .dark .bg-gray-50 {
   @apply bg-gray-800;
 }
