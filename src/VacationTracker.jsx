@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Plane, Hotel, Plus, MapPin, ChevronRight, Trash2, Edit2, X, Check, Home, Briefcase, User, CalendarDays } from 'lucide-react';
+import { Calendar, Plane, Hotel, Plus, MapPin, ChevronRight, Trash2, Edit2, X, Home, Briefcase, User, CalendarDays } from 'lucide-react';
 
 // Popular airlines
 const AIRLINES = [
@@ -691,15 +691,6 @@ export default function VacationTracker() {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatTime = (timeString) => {
-    if (!timeString) return '';
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true 
-    });
   };
 
   return (
