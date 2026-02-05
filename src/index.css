@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Date picker styling - match app design */
+.date-input-wrapper {
+  @apply w-full;
+}
+.date-input-wrapper .react-date-picker__wrapper {
+  @apply w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent;
+}
+.date-input-wrapper .react-date-picker__inputGroup {
+  @apply flex-1 min-w-0;
+}
+.date-input-wrapper .react-date-picker__inputGroup__input {
+  @apply outline-none border-none bg-transparent text-gray-900;
+}
+.date-input-wrapper .react-date-picker__inputGroup__input:invalid {
+  @apply text-gray-400;
+}
+.date-input-wrapper .react-date-picker__button {
+  @apply p-0 ml-2 text-gray-500 hover:text-indigo-600 transition-colors;
+}
+.date-input-wrapper .react-date-picker__calendar-button {
+  @apply p-1;
+}
+.date-input-calendar.react-calendar {
+  @apply border border-gray-200 rounded-xl shadow-lg mt-2 bg-white z-[60];
+}
+.date-input-calendar .react-calendar__tile {
+  @apply rounded-lg py-2 px-1 text-sm;
+}
+.date-input-calendar .react-calendar__tile--active {
+  @apply bg-indigo-600 text-white;
+}
+.date-input-calendar .react-calendar__tile--now {
+  @apply bg-indigo-100 text-indigo-800 font-medium;
+}
+.date-input-calendar .react-calendar__tile:disabled {
+  @apply text-gray-300;
+}
+.date-input-calendar .react-calendar__tile--hasActive {
+  @apply bg-indigo-100;
+}
+.date-input-calendar .react-calendar__month-view__weekdays {
+  @apply text-xs font-semibold text-gray-600;
+}
+.date-input-calendar .react-calendar__month-view__weekdays__weekday abbr {
+  @apply no-underline;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Plane, Hotel, Plus, MapPin, ChevronRight, Trash2, Edit2, X, Home, Briefcase, User, CalendarDays } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Calendar, Plane, Hotel, Plus, MapPin, ChevronRight, ChevronDown, ChevronUp, Trash2, Edit2, X, Home, Briefcase, User, CalendarDays, Download, Upload, Car, Ticket, Landmark, UtensilsCrossed, ShoppingBag, Star, Mic, DollarSign } from 'lucide-react';
+import DateInput from './DateInput';
 
 // Popular airlines
 const AIRLINES = [
@@ -60,6 +62,60 @@ const DESTINATIONS = [
   'Saint Lucia', 'Turks and Caicos', 'Punta Cana, Dominican Republic', 'San Juan, Puerto Rico',
   'Cartagena, Colombia', 'Bogota, Colombia', 'Quito, Ecuador', 'Cusco, Peru', 'Santiago, Chile',
   'Sao Paulo, Brazil', 'Montevideo, Uruguay', 'Asuncion, Paraguay', 'La Paz, Bolivia'
+];
+
+// Common timezones for flight departure/arrival (IANA identifiers)
+const TIMEZONES = [
+  { id: '', label: 'Use browser timezone' },
+  { id: 'America/New_York', label: 'Eastern (New York)' },
+  { id: 'America/Chicago', label: 'Central (Chicago)' },
+  { id: 'America/Denver', label: 'Mountain (Denver)' },
+  { id: 'America/Los_Angeles', label: 'Pacific (Los Angeles)' },
+  { id: 'America/Anchorage', label: 'Alaska (Anchorage)' },
+  { id: 'Pacific/Honolulu', label: 'Hawaii (Honolulu)' },
+  { id: 'America/Toronto', label: 'Eastern (Toronto)' },
+  { id: 'America/Vancouver', label: 'Pacific (Vancouver)' },
+  { id: 'Europe/London', label: 'London' },
+  { id: 'Europe/Paris', label: 'Paris' },
+  { id: 'Europe/Frankfurt', label: 'Frankfurt' },
+  { id: 'Europe/Amsterdam', label: 'Amsterdam' },
+  { id: 'Europe/Madrid', label: 'Madrid' },
+  { id: 'Europe/Rome', label: 'Rome' },
+  { id: 'Europe/Zurich', label: 'Zurich' },
+  { id: 'Asia/Tokyo', label: 'Tokyo' },
+  { id: 'Asia/Shanghai', label: 'Shanghai' },
+  { id: 'Asia/Hong_Kong', label: 'Hong Kong' },
+  { id: 'Asia/Singapore', label: 'Singapore' },
+  { id: 'Asia/Seoul', label: 'Seoul' },
+  { id: 'Asia/Dubai', label: 'Dubai' },
+  { id: 'Asia/Bangkok', label: 'Bangkok' },
+  { id: 'Australia/Sydney', label: 'Sydney' },
+  { id: 'Australia/Melbourne', label: 'Melbourne' },
+  { id: 'Pacific/Auckland', label: 'Auckland' }
+];
+
+// Budget categories - map to itinerary (flight, hotel, or activity type)
+const BUDGET_CATEGORIES = [
+  { id: 'flight', label: 'Flight', icon: Plane },
+  { id: 'hotel', label: 'Hotel', icon: Hotel },
+  { id: 'restaurant', label: 'Restaurant', icon: UtensilsCrossed },
+  { id: 'tour', label: 'Tour', icon: Ticket },
+  { id: 'museum', label: 'Museum', icon: Landmark },
+  { id: 'travel', label: 'Travel', icon: Car },
+  { id: 'shopping', label: 'Shopping', icon: ShoppingBag },
+  { id: 'activity', label: 'Activity', icon: Star }
+];
+
+// Itinerary item types for dropdown
+const ITEM_TYPES = [
+  { id: 'flight', label: 'Flight', icon: Plane, color: 'blue' },
+  { id: 'hotel', label: 'Hotel', icon: Hotel, color: 'purple' },
+  { id: 'travel', label: 'Travel', icon: Car, color: 'emerald' },
+  { id: 'tour', label: 'Tour', icon: Ticket, color: 'amber' },
+  { id: 'museum', label: 'Museum', icon: Landmark, color: 'rose' },
+  { id: 'restaurant', label: 'Restaurant', icon: UtensilsCrossed, color: 'orange' },
+  { id: 'shopping', label: 'Shopping', icon: ShoppingBag, color: 'pink' },
+  { id: 'activity', label: 'Activity', icon: Star, color: 'teal' }
 ];
 
 // Major airport codes
@@ -154,12 +210,54 @@ const AIRPORTS = [
 ];
 
 // Calendar View Component - Month Grid Layout
+// Compute first and last dates from all itinerary items (flights, hotels, activities)
+function getTripDateRangeFromItems(trip) {
+  const dates = [];
+  (trip.flights || []).forEach(f => {
+    if (f.departureTime) {
+      const s = String(f.departureTime);
+      dates.push(s.includes('T') ? s.split('T')[0] : s);
+    }
+    if (f.arrivalTime) {
+      const s = String(f.arrivalTime);
+      dates.push(s.includes('T') ? s.split('T')[0] : s);
+    }
+  });
+  (trip.hotels || []).forEach(h => {
+    if (h.checkInDate) dates.push(h.checkInDate);
+    if (h.checkOutDate) dates.push(h.checkOutDate);
+  });
+  (trip.activities || []).forEach(a => {
+    if (a.date) dates.push(a.date);
+  });
+  if (dates.length === 0) return null;
+  dates.sort();
+  return { first: dates[0], last: dates[dates.length - 1] };
+}
+
 function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
+  const activityRange = getTripDateRangeFromItems(trip);
+  const [viewMode, setViewMode] = useState(() => {
+    if (trip.startDate && trip.endDate) return 'tripDates';
+    if (activityRange) return 'customRange';
+    return 'month';
+  });
   const [currentMonth, setCurrentMonth] = useState(() => {
+    if (activityRange) {
+      return new Date(activityRange.first + 'T12:00:00');
+    }
     if (trip.startDate) {
       return new Date(trip.startDate);
     }
     return new Date();
+  });
+  const [customRangeStart, setCustomRangeStart] = useState(() => {
+    if (activityRange) return activityRange.first;
+    return trip.startDate || new Date().toISOString().split('T')[0];
+  });
+  const [customRangeEnd, setCustomRangeEnd] = useState(() => {
+    if (activityRange) return activityRange.last;
+    return trip.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   });
 
   // Generate calendar grid for the month
@@ -201,82 +299,241 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
     return grid;
   };
 
-  // Get events for a specific date
-  const getEventsForDate = (date) => {
-    if (!date) return [];
-    
-    const events = [];
-    const dateStr = date.toISOString().split('T')[0];
-    
-    // Check flights
-    trip.flights.forEach(flight => {
-      if (flight.departureTime) {
-        const flightDate = new Date(flight.departureTime).toISOString().split('T')[0];
-        if (flightDate === dateStr) {
-          events.push({
-            ...flight,
-            type: 'flight-departure',
-            displayText: `${flight.airline} ${flight.flightNumber}`,
-            color: 'blue'
-          });
-        }
+  // Parse YYYY-MM-DD string as local date (new Date(str) treats it as UTC midnight)
+  const parseLocalDate = (str) => new Date(str + 'T12:00:00');
+
+  // Generate calendar grid for custom date range
+  const generateCustomRangeGrid = () => {
+    const start = parseLocalDate(customRangeStart);
+    const end = parseLocalDate(customRangeEnd);
+    if (start > end) return [];
+
+    const startDayOfWeek = start.getDay();
+    const gridStart = new Date(start);
+    gridStart.setDate(start.getDate() - startDayOfWeek);
+
+    const endDayOfWeek = end.getDay();
+    const gridEnd = new Date(end);
+    gridEnd.setDate(end.getDate() + (6 - endDayOfWeek));
+
+    const grid = [];
+    let week = [];
+    const current = new Date(gridStart);
+
+    while (current <= gridEnd) {
+      week.push(new Date(current.getTime()));
+      if (week.length === 7) {
+        grid.push(week);
+        week = [];
       }
-      if (flight.arrivalTime) {
-        const arrivalDate = new Date(flight.arrivalTime).toISOString().split('T')[0];
-        if (arrivalDate === dateStr) {
-          events.push({
-            ...flight,
-            type: 'flight-arrival',
-            displayText: `Arrive ${flight.arrivalAirport}`,
-            color: 'cyan'
-          });
-        }
+      current.setDate(current.getDate() + 1);
+    }
+
+    if (week.length > 0) {
+      while (week.length < 7) {
+        week.push(null);
       }
-    });
-    
-    // Check hotel check-ins
-    trip.hotels.forEach(hotel => {
-      if (hotel.checkInDate === dateStr) {
-        events.push({
-          ...hotel,
-          type: 'hotel-checkin',
-          displayText: `Stay: ${hotel.hotelName}`,
-          color: 'green'
-        });
-      }
-      if (hotel.checkOutDate === dateStr) {
-        events.push({
-          ...hotel,
-          type: 'hotel-checkout',
-          displayText: `Checkout ${hotel.hotelName}`,
-          color: 'orange'
-        });
-      }
-    });
-    
-    return events;
+      grid.push(week);
+    }
+
+    return grid;
   };
 
-  // Check if date is during hotel stay (but not check-in or checkout day)
+  // Check if date is in custom range (for highlighting)
+  const isInCustomRange = (date) => {
+    if (!date || !customRangeStart || !customRangeEnd) return false;
+    const dateStr = toLocalDateStr(date);
+    return dateStr >= customRangeStart && dateStr <= customRangeEnd;
+  };
+
+  // Use local date string for calendar comparisons (avoids UTC timezone bugs)
+  const toLocalDateStr = (d) => {
+    const date = d instanceof Date ? d : new Date(d);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // Parse flight datetime to date string - uses timezone when set to get correct local date
+  const getFlightDateStr = (dateTimeStr, timezone) => {
+    if (!dateTimeStr) return null;
+    const str = String(dateTimeStr);
+    const d = str.includes('T') ? new Date(str) : new Date(str + 'T12:00:00');
+    if (timezone) {
+      return d.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
+    }
+    if (str.includes('T')) return str.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    return toLocalDateStr(d);
+  };
+
+  // Get spanning bars for a week - single chip per flight/hotel spanning its column range
+  const getSpanningBarsForWeek = (week) => {
+    const bars = [];
+    const colDateStrs = week.map(d => d ? toLocalDateStr(d) : null);
+    
+    // Flights
+    trip.flights.forEach(flight => {
+      const depDate = getFlightDateStr(flight.departureTime, flight.departureTimezone);
+      const arrDate = getFlightDateStr(flight.arrivalTime, flight.arrivalTimezone) || depDate;
+      if (!depDate) return;
+      
+      let startCol = 7, endCol = -1;
+      for (let c = 0; c < 7; c++) {
+        const dateStr = colDateStrs[c];
+        if (!dateStr) continue;
+        if (dateStr >= depDate && dateStr <= arrDate) {
+          startCol = Math.min(startCol, c);
+          endCol = Math.max(endCol, c);
+        }
+      }
+      if (endCol < 0) return;
+      
+      const route = flight.arrivalAirport
+        ? `${flight.departureAirport || '?'} → ${flight.arrivalAirport}`
+        : flight.departureAirport || '';
+      const flightDisplayText = flight.itemName?.trim() || `${flight.airline} ${flight.flightNumber}${route ? ` ${route}` : ''}`;
+      
+      bars.push({
+        id: `flight-${flight.id}`,
+        type: 'flight',
+        displayText: flightDisplayText,
+        color: 'blue',
+        startCol,
+        endCol: endCol + 1,
+        item: flight
+      });
+    });
+    
+    // Hotels
+    trip.hotels.forEach(hotel => {
+      if (!hotel.checkInDate || !hotel.checkOutDate) return;
+      
+      let startCol = 7, endCol = -1;
+      for (let c = 0; c < 7; c++) {
+        const dateStr = colDateStrs[c];
+        if (!dateStr) continue;
+        if (dateStr >= hotel.checkInDate && dateStr <= hotel.checkOutDate) {
+          startCol = Math.min(startCol, c);
+          endCol = Math.max(endCol, c);
+        }
+      }
+      if (endCol < 0) return;
+      
+      const hotelDisplayText = hotel.itemName?.trim() || hotel.hotelName;
+      
+      bars.push({
+        id: `hotel-${hotel.id}`,
+        type: 'hotel',
+        displayText: hotelDisplayText,
+        color: 'purple',
+        startCol,
+        endCol: endCol + 1,
+        item: hotel
+      });
+    });
+    
+    // Activities (travel, tour, museum, restaurant, shopping, activity) - single day
+    (trip.activities || []).forEach(activity => {
+      if (!activity.date) return;
+      const activityDate = activity.date;
+      let startCol = -1;
+      for (let c = 0; c < 7; c++) {
+        if (colDateStrs[c] === activityDate) {
+          startCol = c;
+          break;
+        }
+      }
+      if (startCol < 0) return;
+      
+      const typeConfig = ITEM_TYPES.find(t => t.id === activity.type);
+      const displayText = activity.itemName?.trim() || activity.name || activity.type;
+      bars.push({
+        id: `activity-${activity.id}`,
+        type: activity.type,
+        displayText,
+        color: typeConfig?.color || 'teal',
+        startCol,
+        endCol: startCol + 1,
+        item: activity
+      });
+    });
+    
+    return bars.sort((a, b) => a.startCol - b.startCol);
+  };
+
+  // Check if date is within a flight span (departure through arrival, inclusive)
+  const isFlightSpanDay = (date) => {
+    if (!date) return null;
+    const dateStr = toLocalDateStr(date);
+    return trip.flights.find(flight => {
+      const depDate = getFlightDateStr(flight.departureTime, flight.departureTimezone);
+      const arrDate = getFlightDateStr(flight.arrivalTime, flight.arrivalTimezone) || depDate;
+      if (!depDate) return false;
+      return dateStr >= depDate && dateStr <= arrDate;
+    });
+  };
+
+  // Check if date is within hotel stay (check-in through check-out, inclusive)
   const isHotelStayDay = (date) => {
     if (!date) return null;
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     return trip.hotels.find(hotel => {
       if (!hotel.checkInDate || !hotel.checkOutDate) return false;
-      return dateStr > hotel.checkInDate && dateStr < hotel.checkOutDate;
+      return dateStr >= hotel.checkInDate && dateStr <= hotel.checkOutDate;
     });
   };
 
   // Check if date is in trip range
   const isInTripRange = (date) => {
     if (!date || !trip.startDate || !trip.endDate) return false;
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     return dateStr >= trip.startDate && dateStr <= trip.endDate;
   };
 
+  // Generate grid for trip dates (startDate to endDate)
+  const generateTripDatesGrid = () => {
+    if (!trip.startDate || !trip.endDate) return [];
+    const start = parseLocalDate(trip.startDate);
+    const end = parseLocalDate(trip.endDate);
+    if (start > end) return [];
+    const startDayOfWeek = start.getDay();
+    const gridStart = new Date(start);
+    gridStart.setDate(start.getDate() - startDayOfWeek);
+    const endDayOfWeek = end.getDay();
+    const gridEnd = new Date(end);
+    gridEnd.setDate(end.getDate() + (6 - endDayOfWeek));
+    const grid = [];
+    let week = [];
+    const current = new Date(gridStart);
+    while (current <= gridEnd) {
+      week.push(new Date(current.getTime()));
+      if (week.length === 7) {
+        grid.push(week);
+        week = [];
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    if (week.length > 0) {
+      while (week.length < 7) week.push(null);
+      grid.push(week);
+    }
+    return grid;
+  };
+
   const monthGrid = generateMonthGrid();
+  const customRangeGrid = generateCustomRangeGrid();
+  const tripDatesGrid = generateTripDatesGrid();
+  const displayGrid = viewMode === 'month' ? monthGrid : viewMode === 'tripDates' ? tripDatesGrid : customRangeGrid;
   const monthName = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const today = new Date().toISOString().split('T')[0];
+  const rangeLabel = viewMode === 'tripDates'
+    ? `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}`
+    : viewMode === 'customRange'
+      ? `${formatDate(customRangeStart)} – ${formatDate(customRangeEnd)}`
+      : monthName;
+  const today = toLocalDateStr(new Date());
+  const showInRangeHighlight = viewMode === 'tripDates' ? isInTripRange : viewMode === 'customRange' ? isInCustomRange : isInTripRange;
 
   const goToPreviousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -287,75 +544,190 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
   };
 
   const goToToday = () => {
-    setCurrentMonth(new Date());
+    if (viewMode === 'tripDates') return;
+    const today = new Date();
+    setCurrentMonth(today);
+    if (viewMode === 'customRange') {
+      const rangeDays = Math.ceil((new Date(customRangeEnd) - new Date(customRangeStart)) / (24 * 60 * 60 * 1000));
+      const start = new Date(today);
+      const end = new Date(today);
+      end.setDate(end.getDate() + Math.max(0, rangeDays));
+      setCustomRangeStart(start.toISOString().split('T')[0]);
+      setCustomRangeEnd(end.toISOString().split('T')[0]);
+    }
   };
 
   const getEventColor = (color) => {
     const colors = {
       blue: 'bg-blue-500 text-white',
+      purple: 'bg-purple-500 text-white',
+      emerald: 'bg-emerald-500 text-white',
+      amber: 'bg-amber-500 text-white',
+      rose: 'bg-rose-500 text-white',
+      orange: 'bg-orange-500 text-white',
+      pink: 'bg-pink-500 text-white',
+      teal: 'bg-teal-500 text-white',
       cyan: 'bg-cyan-500 text-white',
       green: 'bg-green-500 text-white',
-      orange: 'bg-orange-500 text-white',
-      purple: 'bg-purple-500 text-white',
       red: 'bg-red-500 text-white',
       yellow: 'bg-yellow-500 text-gray-900'
     };
     return colors[color] || 'bg-gray-500 text-white';
   };
 
+  const goToPreviousRange = () => {
+    if (viewMode === 'tripDates') return;
+    if (viewMode === 'customRange') {
+      const start = new Date(customRangeStart);
+      const end = new Date(customRangeEnd);
+      const days = Math.ceil((end - start) / (24 * 60 * 60 * 1000)) + 1;
+      start.setDate(start.getDate() - days);
+      end.setDate(end.getDate() - days);
+      setCustomRangeStart(start.toISOString().split('T')[0]);
+      setCustomRangeEnd(end.toISOString().split('T')[0]);
+    } else {
+      goToPreviousMonth();
+    }
+  };
+
+  const goToNextRange = () => {
+    if (viewMode === 'tripDates') return;
+    if (viewMode === 'customRange') {
+      const start = new Date(customRangeStart);
+      const end = new Date(customRangeEnd);
+      const days = Math.ceil((end - start) / (24 * 60 * 60 * 1000)) + 1;
+      start.setDate(start.getDate() + days);
+      end.setDate(end.getDate() + days);
+      setCustomRangeStart(start.toISOString().split('T')[0]);
+      setCustomRangeEnd(end.toISOString().split('T')[0]);
+    } else {
+      goToNextMonth();
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Calendar Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">{monthName}</h2>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-4">
+          {/* View mode toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {trip.startDate && trip.endDate && (
+              <button
+                onClick={() => setViewMode('tripDates')}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  viewMode === 'tripDates'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Trip Dates
+              </button>
+            )}
             <button
-              onClick={goToPreviousMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => setViewMode('month')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                viewMode === 'month'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              <ChevronRight className="w-5 h-5 rotate-180" />
+              Month View
             </button>
             <button
-              onClick={goToToday}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+              onClick={() => setViewMode('customRange')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                viewMode === 'customRange'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              Today
+              Custom Range
             </button>
-            <button
-              onClick={goToNextMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+          </div>
+
+          {/* Custom range date pickers */}
+          {viewMode === 'customRange' && (
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="min-w-[180px]">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+                <DateInput
+                  value={customRangeStart}
+                  onChange={setCustomRangeStart}
+                />
+              </div>
+              <div className="min-w-[180px]">
+                <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+                <DateInput
+                  value={customRangeEnd}
+                  onChange={setCustomRangeEnd}
+                  minDate={customRangeStart}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-900">{rangeLabel}</h2>
+            {viewMode !== 'tripDates' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPreviousRange}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+                <button
+                  onClick={goToToday}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={goToNextRange}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-blue-500"></div>
-            <span className="text-gray-700">Flight Departure</span>
+      {/* Legend - only show item types that exist in the trip */}
+      {(() => {
+        const legendItems = [];
+        if ((trip.flights || []).length > 0) {
+          legendItems.push({ id: 'flight', label: 'Flight', color: 'blue' });
+        }
+        if ((trip.hotels || []).length > 0) {
+          legendItems.push({ id: 'hotel', label: 'Hotel Stay', color: 'purple' });
+        }
+        const activityTypes = [...new Set((trip.activities || []).map(a => a.type).filter(Boolean))];
+        activityTypes.forEach(typeId => {
+          const config = ITEM_TYPES.find(t => t.id === typeId);
+          if (config && !legendItems.some(i => i.id === typeId)) {
+            legendItems.push({ id: config.id, label: config.label, color: config.color });
+          }
+        });
+        if (legendItems.length === 0) return null;
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div className="flex flex-wrap gap-4 text-sm">
+              {legendItems.map(item => (
+                <div key={item.id} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded ${getEventColor(item.color).split(' ')[0]}`}></div>
+                  <span className="text-gray-700">{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-cyan-500"></div>
-            <span className="text-gray-700">Flight Arrival</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-green-500"></div>
-            <span className="text-gray-700">Hotel Check-in</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-orange-500"></div>
-            <span className="text-gray-700">Hotel Check-out</span>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Calendar Grid */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible">
         {/* Day headers */}
         <div className="grid grid-cols-7 bg-gray-100 border-b border-gray-200">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -366,72 +738,226 @@ function CalendarView({ trip, onEditItem, onDeleteItem, formatDate }) {
         </div>
 
         {/* Calendar days */}
-        {monthGrid.map((week, weekIdx) => (
-          <div key={weekIdx} className="grid grid-cols-7 border-b border-gray-200 last:border-b-0">
-            {week.map((date, dayIdx) => {
-              const dateStr = date?.toISOString().split('T')[0];
-              const isToday = dateStr === today;
-              const inTripRange = isInTripRange(date);
-              const events = getEventsForDate(date);
-              const hotelStay = isHotelStayDay(date);
-              const hasMoreEvents = events.length > 3;
-              
-              return (
-                <div
-                  key={dayIdx}
-                  className={`min-h-[120px] p-2 border-r border-gray-200 last:border-r-0 ${
-                    !date ? 'bg-gray-50' : ''
-                  } ${inTripRange ? 'bg-indigo-50/30' : ''} ${hotelStay ? 'bg-purple-50/40' : ''}`}
-                >
-                  {date && (
-                    <>
-                      <div className={`text-right mb-1 ${
+        {displayGrid.map((week, weekIdx) => {
+          const spanningBars = getSpanningBarsForWeek(week);
+          return (
+            <div
+              key={weekIdx}
+              className="grid grid-cols-7 border-b border-gray-200 last:border-b-0 overflow-visible min-h-[100px]"
+              style={{ gridTemplateRows: spanningBars.length > 0 ? `auto repeat(${spanningBars.length}, minmax(24px, auto))` : 'auto 1fr' }}
+            >
+              {week.map((date, dayIdx) => {
+                const dateStr = date ? toLocalDateStr(date) : null;
+                const isToday = dateStr === today;
+                const inRange = date && showInRangeHighlight(date);
+                const hotelStay = date ? isHotelStayDay(date) : null;
+                const flightSpan = date ? isFlightSpanDay(date) : null;
+                return (
+                  <div
+                    key={dayIdx}
+                    className={`p-2 border-r border-gray-200 last:border-r-0 min-h-[32px] ${
+                      !date ? 'bg-gray-50' : ''
+                    } ${inRange ? 'bg-indigo-50/30' : ''} ${hotelStay ? 'bg-purple-100/60' : ''} ${flightSpan ? 'bg-blue-100/60' : ''}`}
+                    style={{ gridColumn: dayIdx + 1, gridRow: 1 }}
+                  >
+                    {date && (
+                      <div className={`text-right ${
                         isToday 
                           ? 'w-7 h-7 bg-indigo-600 text-white rounded-full flex items-center justify-center ml-auto font-bold text-sm' 
                           : 'text-gray-900 font-medium text-sm'
                       }`}>
                         {date.getDate()}
                       </div>
-                      
-                      <div className="space-y-1">
-                        {events.slice(0, 3).map((event, idx) => (
-                          <div
-                            key={idx}
-                            className={`text-xs px-2 py-0.5 rounded truncate ${getEventColor(event.color)}`}
-                            title={event.displayText}
-                          >
-                            {event.displayText}
-                          </div>
-                        ))}
-                        {hasMoreEvents && (
-                          <div className="text-xs text-gray-600 px-2">
-                            +{events.length - 3} more
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
+                    )}
+                  </div>
+                );
+              })}
+              {spanningBars.map((bar, barIdx) => (
+                <div
+                  key={bar.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onEditItem(bar.item)}
+                  onKeyDown={(e) => e.key === 'Enter' && onEditItem(bar.item)}
+                  className={`text-xs px-2 py-1 rounded-md flex items-center min-h-[24px] min-w-0 overflow-hidden break-words cursor-pointer hover:opacity-90 active:opacity-80 ${getEventColor(bar.color)}`}
+                  style={{
+                    gridColumn: `${bar.startCol + 1} / ${bar.endCol + 1}`,
+                    gridRow: barIdx + 2
+                  }}
+                  title={`${bar.displayText} (click to edit)`}
+                >
+                  {bar.displayText}
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// Parse price string to number: "$50", "€30", "100.50" -> 50, 30, 100.5
+const parsePrice = (str) => {
+  if (!str || typeof str !== 'string') return 0;
+  const cleaned = str.replace(/[$,€£¥\s]/g, '');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+};
+
+// Get actual spent for a category from trip itinerary items
+const getActualForCategory = (trip, categoryId) => {
+  if (categoryId === 'flight') {
+    return (trip.flights || []).reduce((sum, f) => sum + parsePrice(f.price), 0);
+  }
+  if (categoryId === 'hotel') {
+    return (trip.hotels || []).reduce((sum, h) => sum + parsePrice(h.price), 0);
+  }
+  return (trip.activities || [])
+    .filter(a => a.type === categoryId)
+    .reduce((sum, a) => sum + parsePrice(a.price), 0);
+};
+
+// Compute cost totals by type from a trip
+const getTripCostBreakdown = (trip) => {
+  const byType = {};
+  let total = 0;
+  (trip.flights || []).forEach(f => {
+    const p = parsePrice(f.price);
+    if (p > 0) {
+      byType['Flight'] = (byType['Flight'] || 0) + p;
+      total += p;
+    }
+  });
+  (trip.hotels || []).forEach(h => {
+    const p = parsePrice(h.price);
+    if (p > 0) {
+      byType['Hotel'] = (byType['Hotel'] || 0) + p;
+      total += p;
+    }
+  });
+  (trip.activities || []).forEach(a => {
+    const p = parsePrice(a.price);
+    if (p > 0) {
+      const label = ITEM_TYPES.find(t => t.id === a.type)?.label || a.type || 'Activity';
+      byType[label] = (byType[label] || 0) + p;
+      total += p;
+    }
+  });
+  return { total, byType, pieData: Object.entries(byType).map(([name, value]) => ({ name, value })) };
+};
+
+// Aggregate costs and budgets across all trips
+const getAllTripsCostBreakdown = (trips) => {
+  let total = 0;
+  const byType = {};
+  trips.forEach(trip => {
+    const { total: tTotal, byType: tByType } = getTripCostBreakdown(trip);
+    total += tTotal;
+    Object.entries(tByType).forEach(([k, v]) => { byType[k] = (byType[k] || 0) + v; });
+  });
+  const pieData = Object.entries(byType).map(([name, value]) => ({ name, value }));
+  const totalBudget = trips.reduce((sum, t) => sum + (parsePrice(String(t.budget || '')) || 0), 0);
+  return { total, byType, pieData, totalBudget };
+};
+
+// TEST DEFAULT: Tersigni Italy Trip - loaded when no trips exist. Remove for production.
+const TERSIGNI_ITALY_TRIP = {
+  id: 1,
+  name: 'Tersigni Italy Trip',
+  destination: 'Italy',
+  budgetItems: [
+    { id: 1, category: 'flight', amount: 2000 },
+    { id: 2, category: 'hotel', amount: 1500 },
+    { id: 3, category: 'restaurant', amount: 500 }
+  ],
+  startDate: '2025-07-09',
+  endDate: '2025-07-16',
+  flights: [
+    {
+      id: 1001,
+      type: 'flight',
+      itemName: 'Flight to Rome',
+      airline: 'United Airlines',
+      flightNumber: 'UA123',
+      departureAirport: 'ORD',
+      arrivalAirport: 'FCO',
+      departureTime: '2025-07-09T08:00',
+      arrivalTime: '2025-07-09T22:30',
+      departureTimezone: 'America/Chicago',
+      arrivalTimezone: 'Europe/Rome',
+      confirmationNumber: '',
+      price: '850'
+    },
+    {
+      id: 1002,
+      type: 'flight',
+      itemName: 'Flight home',
+      airline: 'United Airlines',
+      flightNumber: 'UA456',
+      departureAirport: 'FCO',
+      arrivalAirport: 'ORD',
+      departureTime: '2025-07-16T10:00',
+      arrivalTime: '2025-07-16T14:30',
+      departureTimezone: 'Europe/Rome',
+      arrivalTimezone: 'America/Chicago',
+      confirmationNumber: '',
+      price: '850'
+    }
+  ],
+  hotels: [
+    {
+      id: 2001,
+      type: 'hotel',
+      itemName: '',
+      hotelName: 'Hotel Roma',
+      checkInDate: '2025-07-09',
+      checkOutDate: '2025-07-16',
+      address: '',
+      roomType: '',
+      confirmationNumber: '',
+      price: '1200'
+    }
+  ],
+  activities: [
+    { id: 3001, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-09', timeFrom: '19:00', timeTo: '', address: '', price: '50', confirmationNumber: '', url: '', notes: '' },
+    { id: 3002, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-10', timeFrom: '19:00', timeTo: '', address: '', price: '', confirmationNumber: '', url: '', notes: '' },
+    { id: 3003, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-11', timeFrom: '19:00', timeTo: '', address: '', price: '', confirmationNumber: '', url: '', notes: '' },
+    { id: 3004, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-12', timeFrom: '19:00', timeTo: '', address: '', price: '', confirmationNumber: '', url: '', notes: '' },
+    { id: 3005, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-13', timeFrom: '19:00', timeTo: '', address: '', price: '', confirmationNumber: '', url: '', notes: '' },
+    { id: 3006, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-14', timeFrom: '19:00', timeTo: '', address: '', price: '', confirmationNumber: '', url: '', notes: '' },
+    { id: 3007, type: 'restaurant', itemName: 'Dinner Placeholder', name: 'Dinner Placeholder', date: '2025-07-15', timeFrom: '19:00', timeTo: '', address: '', price: '', confirmationNumber: '', url: '', notes: '' }
+  ]
+};
+
+// Use Tersigni Italy Trip as default when localStorage is empty. Remove TERSIGNI_ITALY_TRIP for production.
+const DEFAULT_TRIP = TERSIGNI_ITALY_TRIP;
+
 export default function VacationTracker() {
   const [trips, setTrips] = useState(() => {
     const savedTrips = localStorage.getItem('tripTrackerTrips');
-    return savedTrips ? JSON.parse(savedTrips) : [];
+    const parsed = savedTrips ? JSON.parse(savedTrips) : [];
+    const normalized = parsed.length > 0 ? parsed.map(t => ({ ...t, activities: t.activities || [], budgetItems: t.budgetItems || [] })) : [DEFAULT_TRIP];
+    return normalized;
   });
   const [currentTrip, setCurrentTrip] = useState(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
+  const [showEditTrip, setShowEditTrip] = useState(false);
+  const [editTripForm, setEditTripForm] = useState(null);
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemType, setItemType] = useState('flight');
   const [activeTab, setActiveTab] = useState('home');
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
+  const [tripViewTab, setTripViewTab] = useState('itinerary'); // 'itinerary' | 'budget'
+  const [calendarExpanded, setCalendarExpanded] = useState(true);
+  const [listExpanded, setListExpanded] = useState(true);
+  const [showAddBudgetItem, setShowAddBudgetItem] = useState(false);
+  const [newBudgetItem, setNewBudgetItem] = useState({ category: 'flight', amount: '' });
+  const [listSortOrder, setListSortOrder] = useState('group'); // 'group' | 'date'
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [aiListening, setAiListening] = useState(false);
+  const [aiStatus, setAiStatus] = useState('');
+  const aiRecognitionRef = useRef(null);
   const [showTripsDropdown, setShowTripsDropdown] = useState(false);
   
   // Autocomplete states
@@ -452,11 +978,47 @@ export default function VacationTracker() {
   const airlineInputRef = useRef(null);
   const hotelNameInputRef = useRef(null);
   const tripsDropdownRef = useRef(null);
+  const importInputRef = useRef(null);
 
   // Save trips to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('tripTrackerTrips', JSON.stringify(trips));
   }, [trips]);
+
+  const exportData = () => {
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      trips
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vacation-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        const importedTrips = data.trips ?? (Array.isArray(data) ? data : []);
+        if (importedTrips.length > 0) {
+          setTrips(importedTrips);
+          setCurrentTrip(importedTrips[0]);
+        }
+      } catch (err) {
+        console.error('Import failed:', err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // New trip form state
   const [newTrip, setNewTrip] = useState({
@@ -468,21 +1030,13 @@ export default function VacationTracker() {
 
   // New item form state
   const [newItem, setNewItem] = useState({
-    // Flight fields
-    airline: '',
-    flightNumber: '',
-    departureAirport: '',
-    arrivalAirport: '',
-    departureTime: '',
-    arrivalTime: '',
-    confirmationNumber: '',
-    // Hotel fields
-    hotelName: '',
-    checkInDate: '',
-    checkOutDate: '',
-    address: '',
-    roomType: '',
-    nights: 1
+    itemName: '',
+    airline: '', flightNumber: '', departureAirport: '', arrivalAirport: '',
+    departureTime: '', arrivalTime: '', departureTimezone: '', arrivalTimezone: '',
+    confirmationNumber: '', hotelName: '', checkInDate: '', checkOutDate: '',
+    address: '', roomType: '', nights: 1,
+    // Activity fields (travel, tour, museum, restaurant, shopping, activity)
+    name: '', date: '', timeFrom: '', timeTo: '', price: '', url: '', notes: ''
   });
 
   const [editingItem, setEditingItem] = useState(null);
@@ -571,7 +1125,9 @@ export default function VacationTracker() {
       id: Date.now(),
       ...newTrip,
       flights: [],
-      hotels: []
+      hotels: [],
+      activities: [],
+      budgetItems: []
     };
     
     setTrips([...trips, trip]);
@@ -583,46 +1139,56 @@ export default function VacationTracker() {
   const addItem = () => {
     if (itemType === 'flight') {
       if (!newItem.airline || !newItem.flightNumber) return;
-      
       const flight = {
         id: Date.now(),
         type: 'flight',
+        itemName: newItem.itemName || '',
         airline: newItem.airline,
         flightNumber: newItem.flightNumber,
         departureAirport: newItem.departureAirport,
         arrivalAirport: newItem.arrivalAirport,
         departureTime: newItem.departureTime,
         arrivalTime: newItem.arrivalTime,
-        confirmationNumber: newItem.confirmationNumber
+        departureTimezone: newItem.departureTimezone || '',
+        arrivalTimezone: newItem.arrivalTimezone || '',
+        confirmationNumber: newItem.confirmationNumber,
+        price: newItem.price || ''
       };
-      
-      const updatedTrip = {
-        ...currentTrip,
-        flights: [...currentTrip.flights, flight]
-      };
-      
-      updateTrip(updatedTrip);
-    } else {
+      updateTrip({ ...currentTrip, flights: [...currentTrip.flights, flight] });
+    } else if (itemType === 'hotel') {
       if (!newItem.hotelName) return;
-      
       const hotel = {
         id: Date.now(),
         type: 'hotel',
+        itemName: newItem.itemName || '',
         hotelName: newItem.hotelName,
         checkInDate: newItem.checkInDate,
         checkOutDate: newItem.checkOutDate,
         address: newItem.address,
         roomType: newItem.roomType,
         confirmationNumber: newItem.confirmationNumber,
-        nights: newItem.nights
+        nights: newItem.nights,
+        price: newItem.price || ''
       };
-      
-      const updatedTrip = {
-        ...currentTrip,
-        hotels: [...currentTrip.hotels, hotel]
+      updateTrip({ ...currentTrip, hotels: [...currentTrip.hotels, hotel] });
+    } else if (['travel', 'tour', 'museum', 'restaurant', 'shopping', 'activity'].includes(itemType)) {
+      if (!newItem.name && !newItem.itemName) return;
+      const activity = {
+        id: Date.now(),
+        type: itemType,
+        itemName: newItem.itemName || '',
+        name: newItem.name || '',
+        date: newItem.date || '',
+        timeFrom: newItem.timeFrom || '',
+        timeTo: newItem.timeTo || '',
+        address: newItem.address || '',
+        price: newItem.price || '',
+        confirmationNumber: newItem.confirmationNumber || '',
+        url: newItem.url || '',
+        notes: newItem.notes || ''
       };
-      
-      updateTrip(updatedTrip);
+      const activities = currentTrip.activities || [];
+      updateTrip({ ...currentTrip, activities: [...activities, activity] });
     }
     
     resetItemForm();
@@ -634,13 +1200,15 @@ export default function VacationTracker() {
     setCurrentTrip(updatedTrip);
   };
 
-  const deleteItem = (itemId, itemType) => {
-    const updatedTrip = {
-      ...currentTrip,
-      [itemType === 'flight' ? 'flights' : 'hotels']: 
-        currentTrip[itemType === 'flight' ? 'flights' : 'hotels'].filter(item => item.id !== itemId)
-    };
-    updateTrip(updatedTrip);
+  const deleteItem = (itemId, type) => {
+    if (type === 'flight') {
+      updateTrip({ ...currentTrip, flights: currentTrip.flights.filter(f => f.id !== itemId) });
+    } else if (type === 'hotel') {
+      updateTrip({ ...currentTrip, hotels: currentTrip.hotels.filter(h => h.id !== itemId) });
+    } else if (['travel', 'tour', 'museum', 'restaurant', 'shopping', 'activity'].includes(type)) {
+      const activities = currentTrip.activities || [];
+      updateTrip({ ...currentTrip, activities: activities.filter(a => a.id !== itemId) });
+    }
   };
 
   const startEdit = (item) => {
@@ -651,33 +1219,39 @@ export default function VacationTracker() {
   };
 
   const updateItem = () => {
+    const activities = currentTrip.activities || [];
     if (itemType === 'flight') {
-      const updatedTrip = {
+      updateTrip({
         ...currentTrip,
         flights: currentTrip.flights.map(f => f.id === editingItem.id ? { ...newItem, id: editingItem.id, type: 'flight' } : f)
-      };
-      updateTrip(updatedTrip);
-    } else {
-      const updatedTrip = {
+      });
+    } else if (itemType === 'hotel') {
+      updateTrip({
         ...currentTrip,
         hotels: currentTrip.hotels.map(h => h.id === editingItem.id ? { ...newItem, id: editingItem.id, type: 'hotel' } : h)
-      };
-      updateTrip(updatedTrip);
+      });
+    } else if (['travel', 'tour', 'museum', 'restaurant', 'shopping', 'activity'].includes(itemType)) {
+      updateTrip({
+        ...currentTrip,
+        activities: activities.map(a => a.id === editingItem.id ? { ...newItem, id: editingItem.id, type: itemType } : a)
+      });
     }
-    
     resetItemForm();
     setShowAddItem(false);
     setEditingItem(null);
   };
 
-  const resetItemForm = () => {
+  const resetItemForm = (keepItemType = false) => {
     setNewItem({
+      itemName: '',
       airline: '', flightNumber: '', departureAirport: '', arrivalAirport: '',
-      departureTime: '', arrivalTime: '', confirmationNumber: '',
-      hotelName: '', checkInDate: '', checkOutDate: '', address: '', roomType: '', nights: 1
+      departureTime: '', arrivalTime: '', departureTimezone: '', arrivalTimezone: '',
+      confirmationNumber: '', price: '',
+      hotelName: '', checkInDate: '', checkOutDate: '', address: '', roomType: '', nights: 1,
+      name: '', date: '', timeFrom: '', timeTo: '', url: '', notes: ''
     });
     setEditingItem(null);
-    setItemType('flight');
+    if (!keepItemType) setItemType('flight');
   };
 
   const deleteTrip = (tripId) => {
@@ -687,10 +1261,275 @@ export default function VacationTracker() {
     }
   };
 
+  const addBudgetItem = () => {
+    const amt = parsePrice(String(newBudgetItem.amount || ''));
+    if (!amt || amt <= 0) return;
+    const items = (currentTrip.budgetItems || []).filter(b => b.category !== newBudgetItem.category);
+    items.push({ id: Date.now(), category: newBudgetItem.category, amount: amt });
+    updateTrip({ ...currentTrip, budgetItems: items });
+    setNewBudgetItem({ category: 'flight', amount: '' });
+    setShowAddBudgetItem(false);
+  };
+
+  const deleteBudgetItem = (id) => {
+    const items = (currentTrip.budgetItems || []).filter(b => b.id !== id);
+    updateTrip({ ...currentTrip, budgetItems: items });
+  };
+
+  // Parse natural language and return items to add. Returns { items: [{ name, date, timeFrom, type }], error? }
+  const parseAICommand = (text, trip) => {
+    if (!text || !trip) return { items: [], error: 'No input or trip' };
+    const t = text.trim().toLowerCase();
+    const items = [];
+
+    // Helper: parse time "7pm", "7 pm", "19:00", "7:00 pm" -> "19:00"
+    const parseTime = (s) => {
+      const m = s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+      if (!m) return null;
+      let h = parseInt(m[1], 10);
+      const min = m[2] ? parseInt(m[2], 10) : 0;
+      if (m[3]) {
+        if (m[3].toLowerCase() === 'pm' && h < 12) h += 12;
+        if (m[3].toLowerCase() === 'am' && h === 12) h = 0;
+      }
+      return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    };
+
+    // Helper: get dates from start to end (YYYY-MM-DD)
+    const getDatesInRange = (start, end) => {
+      const dates = [];
+      const s = new Date(start + 'T12:00:00');
+      const e = new Date(end + 'T12:00:00');
+      const current = new Date(s);
+      while (current <= e) {
+        const y = current.getFullYear();
+        const m = String(current.getMonth() + 1).padStart(2, '0');
+        const d = String(current.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${d}`);
+        current.setDate(current.getDate() + 1);
+      }
+      return dates;
+    };
+
+    // "add X for each night at 7pm" / "add X for each night of my trip at 7pm"
+    const eachNightMatch = t.match(/add\s+(.+?)\s+for\s+each\s+night(?:\s+of\s+(?:my\s+)?trip)?\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i)
+      || t.match(/add\s+(.+?)\s+for\s+every\s+night\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i)
+      || t.match(/add\s+(.+?)\s+each\s+night\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+    if (eachNightMatch && trip.startDate && trip.endDate) {
+      const name = eachNightMatch[1].trim();
+      const time = parseTime(eachNightMatch[2]);
+      const dates = getDatesInRange(trip.startDate, trip.endDate);
+      const type = /dinner|restaurant|meal|food/i.test(name) ? 'restaurant' : /breakfast|lunch/i.test(name) ? 'restaurant' : 'activity';
+      dates.forEach(date => {
+        items.push({ name: name || 'Placeholder', date, timeFrom: time || '19:00', type });
+      });
+      return { items };
+    }
+
+    // "add X on July 9 at 7pm" / "add X on July 9" / "add X on 7/9" / "add X on 2025-07-09"
+    const dateAtTimeMatch = t.match(/add\s+(.+?)\s+on\s+(.+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*$/i);
+    if (dateAtTimeMatch) {
+      const name = dateAtTimeMatch[1].trim();
+      let dateStr = dateAtTimeMatch[2].trim();
+      const time = parseTime(dateAtTimeMatch[3]);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { /* ok */ } else if (/^\d{1,2}\/\d{1,2}/.test(dateStr)) {
+        const parts = dateStr.split('/');
+        const m = parseInt(parts[0], 10);
+        const d = parseInt(parts[1], 10);
+        const y = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
+        dateStr = `${y < 100 ? 2000 + y : y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      } else {
+        const d = new Date(dateStr + 'T12:00:00');
+        if (!isNaN(d.getTime())) dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      const type = /dinner|restaurant|meal|food/i.test(name) ? 'restaurant' : /tour|museum|shopping/i.test(name) ? (/tour/i.test(name) ? 'tour' : /museum/i.test(name) ? 'museum' : 'shopping') : 'activity';
+      items.push({ name: name || 'Activity', date: dateStr, timeFrom: time || '19:00', type });
+      return { items };
+    }
+    const dateMatch = t.match(/add\s+(.+?)\s+on\s+(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?)\s*$/i);
+    if (dateMatch) {
+      const name = dateMatch[1].trim();
+      let dateStr = dateMatch[2].trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { /* ok */ } else if (/^\d{1,2}\/\d{1,2}/.test(dateStr)) {
+        const parts = dateStr.split('/');
+        const m = parseInt(parts[0], 10);
+        const d = parseInt(parts[1], 10);
+        const y = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
+        dateStr = `${y < 100 ? 2000 + y : y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      } else {
+        const d = new Date(dateStr + 'T12:00:00');
+        if (!isNaN(d.getTime())) dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      const type = /dinner|restaurant|meal|food/i.test(name) ? 'restaurant' : /tour|museum|shopping/i.test(name) ? (/tour/i.test(name) ? 'tour' : /museum/i.test(name) ? 'museum' : 'shopping') : 'activity';
+      items.push({ name: name || 'Activity', date: dateStr, timeFrom: '', type });
+      return { items };
+    }
+
+    // "add X at 7pm" (use first day of trip or today)
+    const simpleTimeMatch = t.match(/add\s+(.+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+    if (simpleTimeMatch) {
+      const name = simpleTimeMatch[1].trim();
+      const time = parseTime(simpleTimeMatch[2]);
+      const date = trip.startDate || new Date().toISOString().split('T')[0];
+      const type = /dinner|restaurant|meal/i.test(name) ? 'restaurant' : 'activity';
+      items.push({ name: name || 'Activity', date, timeFrom: time || '19:00', type });
+      return { items };
+    }
+
+    // "add X" - single item, use first day of trip
+    const simpleMatch = t.match(/^add\s+(.+)$/);
+    if (simpleMatch) {
+      const name = simpleMatch[1].trim();
+      if (name.length < 2) return { items: [], error: 'Please specify what to add' };
+      const date = trip.startDate || new Date().toISOString().split('T')[0];
+      const type = /dinner|restaurant|meal|food/i.test(name) ? 'restaurant' : /tour/i.test(name) ? 'tour' : /museum/i.test(name) ? 'museum' : /shopping/i.test(name) ? 'shopping' : 'activity';
+      items.push({ name, date, timeFrom: '', type });
+      return { items };
+    }
+
+    return { items: [], error: 'Could not understand. Try: "Add dinner placeholder for each night at 7pm" or "Add museum visit on July 9"' };
+  };
+
+  const processAICommand = () => {
+    if (!aiInput.trim() || !currentTrip) return;
+    setAiStatus('Processing...');
+    const { items, error } = parseAICommand(aiInput, currentTrip);
+    if (error) {
+      setAiStatus(error);
+      return;
+    }
+    if (items.length === 0) {
+      setAiStatus('No items to add. Try: "Add dinner for each night at 7pm"');
+      return;
+    }
+    const newActivities = items.map(item => ({
+      id: Date.now() + Math.random(),
+      type: item.type,
+      itemName: item.name,
+      name: item.name,
+      date: item.date,
+      timeFrom: item.timeFrom || '',
+      timeTo: '',
+      address: '',
+      price: '',
+      confirmationNumber: '',
+      url: '',
+      notes: ''
+    }));
+    const activities = currentTrip.activities || [];
+    updateTrip({ ...currentTrip, activities: [...activities, ...newActivities] });
+    setAiStatus(`Added ${newActivities.length} item(s)!`);
+    setAiInput('');
+    setTimeout(() => {
+      setShowAIModal(false);
+      setAiStatus('');
+    }, 1200);
+  };
+
+  const toggleAIMic = () => {
+    if (aiListening) {
+      if (aiRecognitionRef.current) aiRecognitionRef.current.stop();
+      setAiListening(false);
+      setAiStatus('');
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setAiStatus('Speech recognition not supported in this browser');
+      return;
+    }
+    let recognition = aiRecognitionRef.current;
+    if (!recognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognition.onresult = (e) => {
+        let transcript = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          transcript += e.results[i][0].transcript;
+        }
+        if (transcript.trim()) {
+          setAiInput(prev => prev ? prev + ' ' + transcript.trim() : transcript.trim());
+        }
+      };
+      recognition.onend = () => {
+        if (aiRecognitionRef.current === recognition) {
+          setAiListening(false);
+        }
+      };
+      recognition.onerror = (e) => {
+        if (e.error !== 'aborted') {
+          setAiListening(false);
+          setAiStatus('');
+        }
+      };
+      aiRecognitionRef.current = recognition;
+    }
+    setAiListening(true);
+    setAiStatus('Listening... Click mic again to stop');
+    try {
+      recognition.start();
+    } catch (err) {
+      setAiStatus('Could not start. Ensure microphone is allowed.');
+      setAiListening(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showAIModal) {
+      if (aiRecognitionRef.current) {
+        try { aiRecognitionRef.current.stop(); } catch (_) {}
+        setAiListening(false);
+      }
+      aiRecognitionRef.current = null;
+    }
+  }, [showAIModal]);
+
+  const getItemSortDate = (item, type) => {
+    if (type === 'flight') {
+      if (!item.departureTime) return '9999-99-99';
+      const str = String(item.departureTime);
+      const d = str.includes('T') ? new Date(str) : new Date(str + 'T12:00:00');
+      if (item.departureTimezone) {
+        return d.toLocaleDateString('en-CA', { timeZone: item.departureTimezone });
+      }
+      return str.includes('T') ? str.split('T')[0] : str;
+    }
+    if (type === 'hotel') return item.checkInDate || '9999-99-99';
+    if (['travel','tour','museum','restaurant','shopping','activity'].includes(type)) return item.date || '9999-99-99';
+    return '9999-99-99';
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
+    // Parse YYYY-MM-DD as local date (new Date(str) treats it as UTC midnight, causing off-by-one in western timezones)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateString)
+      ? new Date(dateString + 'T12:00:00')
+      : new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatFlightTime = (dateTimeStr, timezone) => {
+    if (!dateTimeStr) return '';
+    const d = new Date(dateTimeStr);
+    const opts = { hour: 'numeric', minute: '2-digit', hour12: true };
+    if (timezone) opts.timeZone = timezone;
+    const timeStr = d.toLocaleTimeString('en-US', opts);
+    if (timezone) {
+      const tzOption = TIMEZONES.find(t => t.id === timezone);
+      const tzLabel = tzOption ? tzOption.label : timezone.split('/').pop().replace(/_/g, ' ');
+      return `${timeStr} (${tzLabel})`;
+    }
+    return timeStr;
+  };
+
+  const formatFlightDate = (dateTimeStr, timezone) => {
+    if (!dateTimeStr) return '';
+    const d = new Date(dateTimeStr);
+    const opts = { month: 'short', day: 'numeric' };
+    if (timezone) opts.timeZone = timezone;
+    return d.toLocaleDateString('en-US', opts);
   };
 
   return (
@@ -728,7 +1567,6 @@ export default function VacationTracker() {
                             onClick={() => {
                               setCurrentTrip(trip);
                               setActiveTab('trips');
-                              setViewMode('calendar');
                               setShowTripsDropdown(false);
                             }}
                             className="w-full text-left px-4 py-3 rounded-lg hover:bg-indigo-50 transition-colors group"
@@ -761,17 +1599,36 @@ export default function VacationTracker() {
                 </button>
               )}
               
-              {/* Back to Trips */}
+              {/* Edit Trip & Back to Trips - when viewing a trip */}
               {currentTrip && (
-                <button
-                  onClick={() => {
-                    setCurrentTrip(null);
-                    setActiveTab('trips');
-                  }}
-                  className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                >
-                  All Trips
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setEditTripForm({
+                        ...currentTrip,
+                        name: currentTrip.name,
+                        destination: currentTrip.destination || '',
+                        startDate: currentTrip.startDate || '',
+                        endDate: currentTrip.endDate || ''
+                      });
+                      setShowDestinationSuggestions(false);
+                      setShowEditTrip(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200"
+                  >
+                    <Edit2 className="w-5 h-5 flex-shrink-0" />
+                    <span>Edit Trip</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCurrentTrip(null);
+                      setActiveTab('trips');
+                    }}
+                    className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  >
+                    All Trips
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -841,26 +1698,22 @@ export default function VacationTracker() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={newTrip.startDate}
-                      onChange={(e) => setNewTrip({ ...newTrip, startDate: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      onChange={(v) => setNewTrip({ ...newTrip, startDate: v })}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={newTrip.endDate}
-                      min={newTrip.startDate}
-                      onChange={(e) => setNewTrip({ ...newTrip, endDate: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      onChange={(v) => setNewTrip({ ...newTrip, endDate: v })}
+                      minDate={newTrip.startDate}
                     />
                   </div>
                 </div>
@@ -876,55 +1729,168 @@ export default function VacationTracker() {
           </div>
         )}
 
+        {/* Edit Trip Modal */}
+        {showEditTrip && editTripForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Trip</h2>
+                <button
+                  onClick={() => {
+                    setShowEditTrip(false);
+                    setEditTripForm(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Trip Name</label>
+                  <input
+                    type="text"
+                    value={editTripForm.name}
+                    onChange={(e) => setEditTripForm({ ...editTripForm, name: e.target.value })}
+                    placeholder="Summer Vacation 2024"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Destination</label>
+                  <div className="relative" ref={destinationInputRef}>
+                    <input
+                      type="text"
+                      value={editTripForm.destination}
+                      onChange={(e) => {
+                        setEditTripForm({ ...editTripForm, destination: e.target.value });
+                        filterDestinations(e.target.value);
+                        setShowDestinationSuggestions(true);
+                      }}
+                      onFocus={() => {
+                        if (editTripForm.destination.length >= 2) {
+                          filterDestinations(editTripForm.destination);
+                          setShowDestinationSuggestions(true);
+                        }
+                      }}
+                      placeholder="Paris, France"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    {showDestinationSuggestions && destinationSuggestions.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {destinationSuggestions.map((dest, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setEditTripForm({ ...editTripForm, destination: dest });
+                              setShowDestinationSuggestions(false);
+                              setDestinationSuggestions([]);
+                            }}
+                            className="px-4 py-2 hover:bg-indigo-50 cursor-pointer text-gray-700"
+                          >
+                            {dest}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <DateInput
+                      value={editTripForm.startDate}
+                      onChange={(v) => setEditTripForm({ ...editTripForm, startDate: v })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <DateInput
+                      value={editTripForm.endDate}
+                      onChange={(v) => setEditTripForm({ ...editTripForm, endDate: v })}
+                      minDate={editTripForm.startDate}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    updateTrip(editTripForm);
+                    setShowEditTrip(false);
+                    setEditTripForm(null);
+                  }}
+                  className="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                >
+                  Update Trip
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add Item Modal */}
         {showAddItem && currentTrip && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 my-8">
-              <div className="flex items-center justify-between mb-6">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+              {/* Fixed header */}
+              <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 border-b border-gray-200">
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {editingItem ? 'Edit' : 'Add'} {itemType === 'flight' ? 'Flight' : 'Hotel'}
+                  {editingItem ? 'Edit' : 'Add'} Itinerary Item
                 </h2>
                 <button onClick={() => {
                   setShowAddItem(false);
                   setEditingItem(null);
                   resetItemForm();
                   setItemType('flight');
-                }} className="text-gray-400 hover:text-gray-600">
+                }} className="text-gray-400 hover:text-gray-600 p-1">
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
-              {/* Type Toggle */}
-              {!editingItem && (
-                <div className="flex gap-2 mb-6">
-                  <button
-                    onClick={() => setItemType('flight')}
-                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                      itemType === 'flight' 
-                        ? 'bg-indigo-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Plane className="w-4 h-4 inline mr-2" />
-                    Flight
-                  </button>
-                  <button
-                    onClick={() => setItemType('hotel')}
-                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                      itemType === 'hotel' 
-                        ? 'bg-indigo-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Hotel className="w-4 h-4 inline mr-2" />
-                    Hotel
-                  </button>
-                </div>
-              )}
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto min-h-0 p-6">
+              {/* Type Dropdown */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Item type</label>
+                <select
+                  value={itemType}
+                  onChange={(e) => {
+                    setItemType(e.target.value);
+                    if (!editingItem) resetItemForm(true);
+                    if (editingItem) setNewItem({ ...editingItem, type: e.target.value });
+                  }}
+                  disabled={!!editingItem}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                >
+                  {ITEM_TYPES.map(t => {
+                    const Icon = t.icon;
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
               
               <div className="space-y-4">
                 {itemType === 'flight' ? (
                   <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Calendar name</label>
+                      <input
+                        type="text"
+                        value={newItem.itemName || ''}
+                        onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
+                        placeholder="e.g. Flight to Rome"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Shown in calendar view. Leave blank to show airline and route.</p>
+                    </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Airline</label>
                       <div className="relative" ref={airlineInputRef}>
@@ -1068,6 +2034,16 @@ export default function VacationTracker() {
                           onChange={(e) => setNewItem({ ...newItem, departureTime: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
+                        <label className="block text-xs font-medium text-gray-500 mt-1 mb-1">Departure timezone</label>
+                        <select
+                          value={newItem.departureTimezone || ''}
+                          onChange={(e) => setNewItem({ ...newItem, departureTimezone: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                        >
+                          {TIMEZONES.map(tz => (
+                            <option key={tz.id || 'browser'} value={tz.id}>{tz.label}</option>
+                          ))}
+                        </select>
                       </div>
                       
                       <div>
@@ -1079,6 +2055,16 @@ export default function VacationTracker() {
                           onChange={(e) => setNewItem({ ...newItem, arrivalTime: e.target.value })}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
+                        <label className="block text-xs font-medium text-gray-500 mt-1 mb-1">Arrival timezone</label>
+                        <select
+                          value={newItem.arrivalTimezone || ''}
+                          onChange={(e) => setNewItem({ ...newItem, arrivalTimezone: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                        >
+                          {TIMEZONES.map(tz => (
+                            <option key={tz.id || 'browser'} value={tz.id}>{tz.label}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     
@@ -1092,9 +2078,31 @@ export default function VacationTracker() {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                      <input
+                        type="text"
+                        value={newItem.price ?? ''}
+                        onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                        placeholder="e.g. $450 or 450"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
                   </>
-                ) : (
+                ) : itemType === 'hotel' ? (
                   <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Calendar name</label>
+                      <input
+                        type="text"
+                        value={newItem.itemName || ''}
+                        onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
+                        placeholder="e.g. Hotel in Paris"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Shown in calendar view. Leave blank to show hotel name.</p>
+                    </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Hotel Name</label>
                       <div className="relative" ref={hotelNameInputRef}>
@@ -1148,22 +2156,23 @@ export default function VacationTracker() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Check-In</label>
-                        <input
-                          type="date"
+                        <DateInput
                           value={newItem.checkInDate}
-                          onChange={(e) => setNewItem({ ...newItem, checkInDate: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          onChange={(v) => setNewItem({ ...newItem, checkInDate: v })}
+                          defaultMonth={currentTrip?.startDate}
+                          minDate={currentTrip?.startDate}
+                          maxDate={currentTrip?.endDate}
                         />
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Check-Out</label>
-                        <input
-                          type="date"
+                        <DateInput
                           value={newItem.checkOutDate}
-                          min={newItem.checkInDate}
-                          onChange={(e) => setNewItem({ ...newItem, checkOutDate: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          onChange={(v) => setNewItem({ ...newItem, checkOutDate: v })}
+                          minDate={newItem.checkInDate}
+                          defaultMonth={newItem.checkInDate || currentTrip?.startDate}
+                          maxDate={currentTrip?.endDate}
                         />
                       </div>
                     </div>
@@ -1189,23 +2198,210 @@ export default function VacationTracker() {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                      <input
+                        type="text"
+                        value={newItem.price ?? ''}
+                        onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                        placeholder="e.g. $200/night or 200"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
                   </>
-                )}
-                
+                ) : ['travel', 'tour', 'museum', 'restaurant', 'shopping', 'activity'].includes(itemType) ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Calendar name</label>
+                      <input
+                        type="text"
+                        value={newItem.itemName || ''}
+                        onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
+                        placeholder={`e.g. ${ITEM_TYPES.find(t => t.id === itemType)?.label} in Rome`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={newItem.name || ''}
+                        onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                        placeholder={`e.g. ${itemType === 'restaurant' ? 'Trattoria Roma' : itemType === 'museum' ? 'Vatican Museums' : itemType === 'tour' ? 'Colosseum Tour' : 'Activity name'}`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                      <DateInput
+                        value={newItem.date || ''}
+                        onChange={(v) => setNewItem({ ...newItem, date: v })}
+                        defaultMonth={currentTrip?.startDate}
+                        minDate={currentTrip?.startDate}
+                        maxDate={currentTrip?.endDate}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Time from</label>
+                        <input
+                          type="time"
+                          value={newItem.timeFrom || ''}
+                          onChange={(e) => setNewItem({ ...newItem, timeFrom: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Time to</label>
+                        <input
+                          type="time"
+                          value={newItem.timeTo || ''}
+                          onChange={(e) => setNewItem({ ...newItem, timeTo: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                      <input
+                        type="text"
+                        value={newItem.address || ''}
+                        onChange={(e) => setNewItem({ ...newItem, address: e.target.value })}
+                        placeholder="123 Main St"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                      <input
+                        type="text"
+                        value={newItem.price || ''}
+                        onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                        placeholder="e.g. $50 or €30"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Confirmation number</label>
+                      <input
+                        type="text"
+                        value={newItem.confirmationNumber || ''}
+                        onChange={(e) => setNewItem({ ...newItem, confirmationNumber: e.target.value })}
+                        placeholder="ABC123"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">URL</label>
+                      <input
+                        type="url"
+                        value={newItem.url || ''}
+                        onChange={(e) => setNewItem({ ...newItem, url: e.target.value })}
+                        placeholder="https://..."
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                      <textarea
+                        value={newItem.notes || ''}
+                        onChange={(e) => setNewItem({ ...newItem, notes: e.target.value })}
+                        placeholder="Additional notes..."
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              </div>
+
+              {/* Fixed footer with Save/Update button */}
+              {['flight', 'hotel', 'travel', 'tour', 'museum', 'restaurant', 'shopping', 'activity'].includes(itemType) && (
+                <div className="p-6 pt-4 flex-shrink-0 border-t border-gray-200">
+                  <button
+                    onClick={editingItem ? updateItem : addItem}
+                    className="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  >
+                    {editingItem ? 'Update' : 'Add'} {ITEM_TYPES.find(t => t.id === itemType)?.label || itemType}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* AI / Tell AI Modal */}
+        {showAIModal && currentTrip && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-500 flex items-center justify-center">
+                    <Mic className="w-4 h-4 text-white" />
+                  </span>
+                  Tell AI what to add
+                </h2>
                 <button
-                  onClick={editingItem ? updateItem : addItem}
-                  className="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  onClick={() => {
+                    setShowAIModal(false);
+                    setAiInput('');
+                    setAiStatus('');
+                    if (aiListening && aiRecognitionRef.current) {
+                      aiRecognitionRef.current.stop();
+                      setAiListening(false);
+                    }
+                  }}
+                  className="text-gray-400 hover:text-gray-600 p-1"
                 >
-                  {editingItem ? 'Update' : 'Add'} {itemType === 'flight' ? 'Flight' : 'Hotel'}
+                  <X className="w-6 h-6" />
                 </button>
               </div>
+              <p className="text-sm text-gray-600 mb-2">
+                Examples: &quot;Add dinner placeholder for each night at 7pm&quot;, &quot;Add museum visit on July 9&quot;
+              </p>
+              <p className="text-xs text-gray-500 mb-4">
+                Microphone permission is remembered by your browser once granted.
+              </p>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && processAICommand()}
+                  placeholder="Add dinner for each night at 7pm"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  autoFocus
+                />
+                <button
+                  onClick={toggleAIMic}
+                  disabled={!(window.SpeechRecognition || window.webkitSpeechRecognition)}
+                  className={`px-4 py-3 rounded-lg transition-colors flex items-center gap-2 ${
+                    aiListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  title={window.SpeechRecognition || window.webkitSpeechRecognition ? 'Click to start, click again to stop' : 'Speech not supported'}
+                >
+                  <Mic className="w-5 h-5" />
+                </button>
+              </div>
+              {aiStatus && (
+                <div className={`text-sm mb-4 ${aiStatus.startsWith('Added') ? 'text-green-600' : aiStatus.startsWith('Could not') || aiStatus.startsWith('No items') ? 'text-amber-600' : 'text-gray-500'}`}>
+                  {aiStatus}
+                </div>
+              )}
+              <button
+                onClick={processAICommand}
+                className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg hover:from-violet-700 hover:to-indigo-700 transition-colors font-medium"
+              >
+                Add to itinerary
+              </button>
             </div>
           </div>
         )}
 
         {/* Main Content */}
         {activeTab === 'home' && (
-          <div className="text-center py-20">
+          <div className="text-center py-12 px-4 max-w-4xl mx-auto">
             <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <MapPin className="w-10 h-10 text-white" />
             </div>
@@ -1213,7 +2409,7 @@ export default function VacationTracker() {
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
               Your all-in-one vacation planning companion. Track flights, hotels, and create amazing travel itineraries.
             </p>
-            <div className="flex gap-4 justify-center mb-8">
+            <div className="flex flex-wrap gap-4 justify-center mb-8">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
                 <div className="text-3xl font-bold text-indigo-600 mb-1">{trips.length}</div>
                 <div className="text-sm text-gray-600">Total Trips</div>
@@ -1231,6 +2427,7 @@ export default function VacationTracker() {
                 <div className="text-sm text-gray-600">Hotels Reserved</div>
               </div>
             </div>
+
             <button
               onClick={() => {
                 setActiveTab('trips');
@@ -1304,9 +2501,29 @@ export default function VacationTracker() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            setEditTripForm({
+                              ...trip,
+                              name: trip.name,
+                              destination: trip.destination || '',
+                              startDate: trip.startDate || '',
+                              endDate: trip.endDate || ''
+                            });
+                            setShowDestinationSuggestions(false);
+                            setShowEditTrip(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200"
+                          title="Edit trip"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          <span className="text-sm font-medium">Edit</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             deleteTrip(trip.id);
                           }}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete trip"
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
@@ -1335,67 +2552,150 @@ export default function VacationTracker() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => deleteTrip(currentTrip.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditTripForm({
+                        ...currentTrip,
+                        name: currentTrip.name,
+                        destination: currentTrip.destination || '',
+                        startDate: currentTrip.startDate || '',
+                        endDate: currentTrip.endDate || ''
+                      });
+                      setShowDestinationSuggestions(false);
+                      setShowEditTrip(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200"
+                    title="Edit trip"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span className="text-sm font-medium">Edit</span>
+                  </button>
+                  <button
+                    onClick={() => deleteTrip(currentTrip.id)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete trip"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* View Toggle */}
-            <div className="flex gap-2 mb-6">
+            {/* Trip sub-tabs: Itinerary | Budget */}
+            <div className="mb-4 flex gap-2">
               <button
-                onClick={() => setViewMode('list')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                onClick={() => setTripViewTab('itinerary')}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  tripViewTab === 'itinerary' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                <Briefcase className="w-5 h-5" />
-                List View
+                Itinerary
               </button>
               <button
-                onClick={() => setViewMode('calendar')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${
-                  viewMode === 'calendar'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                onClick={() => setTripViewTab('budget')}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-1.5 ${
+                  tripViewTab === 'budget' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                <CalendarDays className="w-5 h-5" />
-                Calendar View
+                <DollarSign className="w-4 h-4" />
+                Budget
               </button>
             </div>
 
-            {viewMode === 'list' ? (
-              <>
-            {/* Quick Add Buttons */}
-            <div className="flex gap-3 mb-6">
+            {tripViewTab === 'itinerary' && (
+            <>
+            {/* Add Itinerary Item + AI Buttons */}
+            <div className="mb-6 flex flex-wrap gap-3">
               <button
                 onClick={() => {
                   setItemType('flight');
+                  resetItemForm();
                   setShowAddItem(true);
                 }}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border-2 border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium"
+                className="flex items-center justify-center gap-2 py-3 px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
               >
-                <Plane className="w-5 h-5" />
-                Add Flight
+                <Plus className="w-5 h-5" />
+                Add Itinerary Item
               </button>
               <button
                 onClick={() => {
-                  setItemType('hotel');
-                  setShowAddItem(true);
+                  setShowAIModal(true);
+                  setAiInput('');
+                  setAiStatus('');
                 }}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border-2 border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium"
+                className="flex items-center justify-center gap-2 py-3 px-6 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg hover:from-violet-700 hover:to-indigo-700 transition-colors font-medium"
+                title="Tell the app what to add"
               >
-                <Hotel className="w-5 h-5" />
-                Add Hotel
+                <Mic className="w-5 h-5" />
+                Tell AI
               </button>
             </div>
 
+            {/* Collapsible Calendar Section */}
+            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setCalendarExpanded(!calendarExpanded)}
+                className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-50 transition-colors"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-indigo-600" />
+                  Calendar
+                </h3>
+                {calendarExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
+              {calendarExpanded && (
+                <div className="border-t border-gray-200 p-4">
+                  <CalendarView trip={currentTrip} onEditItem={startEdit} onDeleteItem={deleteItem} formatDate={formatDate} />
+                </div>
+              )}
+            </div>
+
+            {/* Collapsible List Section */}
+            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setListExpanded(!listExpanded)}
+                className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-50 transition-colors"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-indigo-600" />
+                  Itinerary List
+                </h3>
+                {listExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
+              {listExpanded && (
+                <div className="border-t border-gray-200 p-4 space-y-6">
+            {/* Sort order toggle */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-medium text-gray-600">Sort by:</span>
+              <button
+                onClick={() => setListSortOrder('group')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  listSortOrder === 'group' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Group
+              </button>
+              <button
+                onClick={() => setListSortOrder('date')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  listSortOrder === 'date' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Date
+              </button>
+            </div>
+
+            {listSortOrder === 'group' ? (
+              <>
             {/* Flights Section */}
             {currentTrip.flights.length > 0 && (
               <div className="mb-6">
@@ -1438,8 +2738,8 @@ export default function VacationTracker() {
                           <div className="text-2xl font-bold">{flight.departureAirport}</div>
                           {flight.departureTime && (
                             <div className="text-sm text-gray-600">
-                              {new Date(flight.departureTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{' '}
-                              {new Date(flight.departureTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                              {formatFlightDate(flight.departureTime, flight.departureTimezone)}{' '}
+                              {formatFlightTime(flight.departureTime, flight.departureTimezone)}
                             </div>
                           )}
                         </div>
@@ -1454,8 +2754,8 @@ export default function VacationTracker() {
                           <div className="text-2xl font-bold">{flight.arrivalAirport}</div>
                           {flight.arrivalTime && (
                             <div className="text-sm text-gray-600">
-                              {new Date(flight.arrivalTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{' '}
-                              {new Date(flight.arrivalTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                              {formatFlightDate(flight.arrivalTime, flight.arrivalTimezone)}{' '}
+                              {formatFlightTime(flight.arrivalTime, flight.arrivalTimezone)}
                             </div>
                           )}
                         </div>
@@ -1523,20 +2823,294 @@ export default function VacationTracker() {
               </div>
             )}
 
-            {/* Empty State */}
-            {currentTrip.flights.length === 0 && currentTrip.hotels.length === 0 && (
-              <div className="text-center py-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
+            {/* Activities Section */}
+            {(currentTrip.activities || []).length > 0 && (
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Star className="w-5 h-5 text-indigo-600" />
+                  Activities & Reservations
+                </h3>
+                <div className="space-y-3">
+                  {(currentTrip.activities || []).map(activity => {
+                    const typeConfig = ITEM_TYPES.find(t => t.id === activity.type);
+                    const Icon = typeConfig?.icon || Star;
+                    return (
+                      <div key={activity.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Icon className="w-5 h-5 text-indigo-600" />
+                              <span className="text-xs font-medium text-gray-500 uppercase">{typeConfig?.label || activity.type}</span>
+                            </div>
+                            <div className="font-semibold text-gray-900 text-lg">
+                              {activity.itemName || activity.name || 'Untitled'}
+                            </div>
+                            {activity.date && (
+                              <div className="text-sm text-gray-600 mt-1">
+                                {formatDate(activity.date)}
+                                {activity.timeFrom && ` • ${activity.timeFrom}${activity.timeTo ? ` – ${activity.timeTo}` : ''}`}
+                              </div>
+                            )}
+                            {activity.address && <div className="text-sm text-gray-600 mt-1">{activity.address}</div>}
+                            {activity.price && <div className="text-sm text-gray-600 mt-1">Price: {activity.price}</div>}
+                            {activity.confirmationNumber && <div className="text-sm text-gray-600 mt-1">Confirmation: {activity.confirmationNumber}</div>}
+                            {activity.url && (
+                              <a href={activity.url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline mt-1 block">
+                                View link
+                              </a>
+                            )}
+                            {activity.notes && <div className="text-sm text-gray-600 mt-2 italic">{activity.notes}</div>}
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => startEdit(activity)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => deleteItem(activity.id, activity.type)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            </>
+            ) : (
+            /* List by date - combined sorted list */
+            (() => {
+              const items = [
+                ...(currentTrip.flights || []).map(f => ({ ...f, _sortType: 'flight' })),
+                ...(currentTrip.hotels || []).map(h => ({ ...h, _sortType: 'hotel' })),
+                ...((currentTrip.activities || []).map(a => ({ ...a, _sortType: a.type })))
+              ];
+              items.sort((a, b) => getItemSortDate(a, a._sortType).localeCompare(getItemSortDate(b, b._sortType)));
+              return (
+                <div className="space-y-3">
+                  {items.map(item => {
+                    const type = item._sortType;
+                    if (type === 'flight') {
+                      return (
+                        <div key={`flight-${item.id}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded">Flight</span>
+                              <span className="text-sm text-gray-500">{item.departureTime && formatDate(getItemSortDate(item, 'flight'))}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => startEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                              <button onClick={() => deleteItem(item.id, 'flight')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </div>
+                          <div className="font-semibold text-gray-900">{item.airline} {item.flightNumber}</div>
+                          <div className="flex items-center gap-4 text-gray-700 mt-2">
+                            <div><span className="font-bold">{item.departureAirport}</span>{item.departureTime && <span className="text-sm text-gray-600 block">{formatFlightDate(item.departureTime, item.departureTimezone)} {formatFlightTime(item.departureTime, item.departureTimezone)}</span>}</div>
+                            <Plane className="w-4 h-4 text-indigo-600 rotate-90 flex-shrink-0" />
+                            <div><span className="font-bold">{item.arrivalAirport}</span>{item.arrivalTime && <span className="text-sm text-gray-600 block">{formatFlightDate(item.arrivalTime, item.arrivalTimezone)} {formatFlightTime(item.arrivalTime, item.arrivalTimezone)}</span>}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (type === 'hotel') {
+                      return (
+                        <div key={`hotel-${item.id}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-0.5 rounded">Hotel</span>
+                              <span className="text-sm text-gray-500">{formatDate(item.checkInDate)}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => startEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                              <button onClick={() => deleteItem(item.id, 'hotel')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </div>
+                          <div className="font-semibold text-gray-900">{item.hotelName}</div>
+                          <div className="text-sm text-gray-600 mt-1">{formatDate(item.checkInDate)} → {formatDate(item.checkOutDate)}</div>
+                          {item.address && <div className="text-sm text-gray-600 mt-1">{item.address}</div>}
+                        </div>
+                      );
+                    }
+                    const typeConfig = ITEM_TYPES.find(t => t.id === type);
+                    const Icon = typeConfig?.icon || Star;
+                    return (
+                      <div key={`activity-${item.id}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded flex items-center gap-1">
+                              <Icon className="w-3 h-3" />{typeConfig?.label || type}
+                            </span>
+                            <span className="text-sm text-gray-500">{item.date && formatDate(item.date)}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => startEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => deleteItem(item.id, type)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                        <div className="font-semibold text-gray-900">{item.itemName || item.name || 'Untitled'}</div>
+                        {item.date && <div className="text-sm text-gray-600 mt-1">{formatDate(item.date)}{item.timeFrom && ` • ${item.timeFrom}${item.timeTo ? ` – ${item.timeTo}` : ''}`}</div>}
+                        {item.address && <div className="text-sm text-gray-600 mt-1">{item.address}</div>}
+                        {item.price && <div className="text-sm text-gray-600 mt-1">Price: {item.price}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+            )}
+
+            {/* Empty State - inside list section */}
+            {currentTrip.flights.length === 0 && currentTrip.hotels.length === 0 && (currentTrip.activities || []).length === 0 && (
+              <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
                 <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Plus className="w-8 h-8 text-indigo-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Start planning your trip</h3>
-                <p className="text-gray-600 mb-6">Add flights and hotels to organize your vacation</p>
+                <p className="text-gray-600 mb-6">Add flights, hotels, and activities to organize your vacation</p>
               </div>
             )}
+                </div>
+              )}
+            </div>
             </>
-            ) : (
-              /* Calendar View */
-              <CalendarView trip={currentTrip} onEditItem={startEdit} onDeleteItem={deleteItem} formatDate={formatDate} />
+            )}
+
+            {tripViewTab === 'budget' && (
+              <div className="mb-6 space-y-6">
+                {/* Add Budget Item */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-indigo-600" />
+                    Budget Categories
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Add budget amounts by category. Actual spending is pulled from your itinerary items (flights, hotels, activities with prices).</p>
+                  {!showAddBudgetItem ? (
+                    <button
+                      onClick={() => setShowAddBudgetItem(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Budget Category
+                    </button>
+                  ) : (
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select
+                          value={newBudgetItem.category}
+                          onChange={(e) => setNewBudgetItem({ ...newBudgetItem, category: e.target.value })}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {BUDGET_CATEGORIES.map(c => (
+                            <option key={c.id} value={c.id}>{c.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Budget ($)</label>
+                        <input
+                          type="text"
+                          value={newBudgetItem.amount}
+                          onChange={(e) => setNewBudgetItem({ ...newBudgetItem, amount: e.target.value })}
+                          placeholder="e.g. 2000"
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 w-32"
+                        />
+                      </div>
+                      <button onClick={addBudgetItem} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Add</button>
+                      <button onClick={() => { setShowAddBudgetItem(false); setNewBudgetItem({ category: 'flight', amount: '' }); }} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Cancel</button>
+                    </div>
+                  )}
+
+                  {/* Budget table */}
+                  {((currentTrip.budgetItems || []).length > 0) && (
+                    <div className="mt-6 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-3 font-medium text-gray-700">Category</th>
+                            <th className="text-right py-3 font-medium text-gray-700">Budgeted</th>
+                            <th className="text-right py-3 font-medium text-gray-700">Actual</th>
+                            <th className="text-right py-3 font-medium text-gray-700">Variance</th>
+                            <th className="w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(currentTrip.budgetItems || []).map(bi => {
+                            const label = BUDGET_CATEGORIES.find(c => c.id === bi.category)?.label || bi.category;
+                            const actual = getActualForCategory(currentTrip, bi.category);
+                            const variance = actual - bi.amount;
+                            return (
+                              <tr key={bi.id} className="border-b border-gray-100">
+                                <td className="py-3 font-medium text-gray-900">{label}</td>
+                                <td className="text-right py-3 text-gray-700">${bi.amount.toLocaleString(0)}</td>
+                                <td className="text-right py-3 text-gray-700">${actual.toLocaleString(0)}</td>
+                                <td className={`text-right py-3 font-medium ${variance > 0 ? 'text-red-600' : variance < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                                  {variance > 0 ? '+' : ''}{variance === 0 ? '0' : `$${variance.toLocaleString(0)}`}
+                                </td>
+                                <td className="py-3">
+                                  <button onClick={() => deleteBudgetItem(bi.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Summary & progress */}
+                  {(() => {
+                    const items = currentTrip.budgetItems || [];
+                    const totalBudget = items.reduce((s, b) => s + b.amount, 0);
+                    const totalActual = items.reduce((s, b) => s + getActualForCategory(currentTrip, b.category), 0);
+                    const pctUsed = totalBudget > 0 ? Math.min(150, (totalActual / totalBudget) * 100) : 0;
+                    const pieData = items.map(bi => ({
+                      name: BUDGET_CATEGORIES.find(c => c.id === bi.category)?.label || bi.category,
+                      value: getActualForCategory(currentTrip, bi.category)
+                    })).filter(d => d.value > 0);
+                    const COLORS = ['#4f46e5', '#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6'];
+                    return (
+                      <>
+                        {items.length > 0 && (
+                          <div className="mt-6 pt-6 border-t border-gray-200 grid sm:grid-cols-2 gap-6">
+                            <div>
+                              <div className="text-sm text-gray-600 mb-1">Total Budget / Actual</div>
+                              <div className="text-2xl font-bold text-gray-900">${totalActual.toLocaleString(0)} / ${totalBudget.toLocaleString(0)}</div>
+                              <div className="mt-2 h-3 bg-gray-200 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${pctUsed > 100 ? 'bg-red-500' : pctUsed > 80 ? 'bg-amber-500' : 'bg-indigo-600'}`} style={{ width: `${Math.min(100, pctUsed)}%` }} />
+                              </div>
+                              <p className="text-xs text-gray-600 mt-2">
+                                {totalActual > totalBudget ? (
+                                  <span className="text-red-600">Over budget by ${(totalActual - totalBudget).toLocaleString(0)}</span>
+                                ) : (
+                                  <span>${(totalBudget - totalActual).toLocaleString(0)} remaining</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {pieData.length > 0 && (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <h4 className="text-base font-semibold text-gray-900 mb-4">Spending by Category</h4>
+                            <div className="h-56">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={75} paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                  </Pie>
+                                  <Tooltip formatter={(v) => [`$${Number(v).toLocaleString(0)}`, 'Actual']} />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -1583,6 +3157,36 @@ export default function VacationTracker() {
                     {trips.reduce((sum, trip) => sum + trip.hotels.length, 0)}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Backup</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Your trips are saved in your browser. Export a backup to keep your data across devices or future builds.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={exportData}
+                  className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                >
+                  <Download className="w-5 h-5" />
+                  Export Backup
+                </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={importData}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => importInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium"
+                >
+                  <Upload className="w-5 h-5" />
+                  Import Backup
+                </button>
               </div>
             </div>
 
@@ -1637,27 +3241,6 @@ export default function VacationTracker() {
             >
               <Briefcase className={`w-6 h-6 mb-1 ${activeTab === 'trips' ? 'fill-indigo-600' : ''}`} />
               <span className="text-xs font-medium">Trips</span>
-            </button>
-            
-            <button
-              onClick={() => {
-                if (currentTrip) {
-                  setViewMode('calendar');
-                  setActiveTab('trips');
-                } else if (trips.length > 0) {
-                  setCurrentTrip(trips[0]);
-                  setViewMode('calendar');
-                  setActiveTab('trips');
-                }
-              }}
-              className={`flex-1 flex flex-col items-center py-3 transition-colors ${
-                viewMode === 'calendar' && currentTrip
-                  ? 'text-indigo-600' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <CalendarDays className={`w-6 h-6 mb-1 ${viewMode === 'calendar' && currentTrip ? 'fill-indigo-600' : ''}`} />
-              <span className="text-xs font-medium">Calendar</span>
             </button>
             
             <button
