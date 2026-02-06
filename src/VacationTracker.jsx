@@ -1003,6 +1003,7 @@ const getTripCostBreakdown = (trip) => {
 };
 
 // Aggregate costs and budgets across all trips
+// eslint-disable-next-line no-unused-vars
 const getAllTripsCostBreakdown = (trips) => {
   let total = 0;
   const byType = {};
@@ -1838,12 +1839,12 @@ export default function VacationTracker() {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-2 flex-nowrap min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">TripTracker</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">TripTracker</h1>
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className="p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -1853,7 +1854,7 @@ export default function VacationTracker() {
               </button>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {/* Trips Dropdown */}
               {trips.length > 0 && (
                 <div className="relative" ref={tripsDropdownRef}>
@@ -1924,7 +1925,7 @@ export default function VacationTracker() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-24 sm:px-6">
         {/* New Trip Modal */}
         {showNewTrip && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -2848,10 +2849,10 @@ export default function VacationTracker() {
         {activeTab === 'trips' && currentTrip && (
           // Trip Detail View
           <div>
-            <div className="itinerary-item-card bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{currentTrip.name}</h2>
+            <div className="itinerary-item-card bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+              <div className="flex items-start justify-between gap-3 mb-4 flex-nowrap">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2 truncate">{currentTrip.name}</h2>
                   <p className="text-xl text-indigo-600 dark:text-indigo-400 font-medium mb-3">{currentTrip.destination}</p>
                   {currentTrip.startDate && currentTrip.endDate && (
                     <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
@@ -2860,7 +2861,7 @@ export default function VacationTracker() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => {
                       setEditTripForm({
@@ -2890,8 +2891,8 @@ export default function VacationTracker() {
             </div>
 
             {/* Trip sub-tabs: Itinerary | Budget | Add + Tell AI (right) */}
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="flex gap-2">
+            <div className="mb-4 flex items-center justify-between gap-2 sm:gap-4 flex-nowrap">
+              <div className="flex gap-2 flex-shrink-0 min-w-0">
                 <button
                   onClick={() => setTripViewTab('itinerary')}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
@@ -2911,7 +2912,7 @@ export default function VacationTracker() {
                 </button>
               </div>
               {tripViewTab === 'itinerary' && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                   <button
                     onClick={() => {
                       setItemType('flight');
@@ -3013,9 +3014,9 @@ export default function VacationTracker() {
                 </h3>
                 <div className="space-y-3">
                   {currentTrip.flights.map(flight => (
-                    <div key={flight.id} className="itinerary-item-card bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
+                    <div key={flight.id} className="itinerary-item-card bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-3 mb-3 flex-nowrap">
+                        <div className="min-w-0 flex-1">
                           <div className="font-semibold text-gray-900 text-lg">
                             {flight.airline} {flight.flightNumber}
                           </div>
@@ -3025,7 +3026,7 @@ export default function VacationTracker() {
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-shrink-0">
                           <button
                             onClick={() => startEdit(flight)}
                             className="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
@@ -3083,9 +3084,9 @@ export default function VacationTracker() {
                 </h3>
                 <div className="space-y-3">
                   {currentTrip.hotels.map(hotel => (
-                    <div key={hotel.id} className="itinerary-item-card bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
+                    <div key={hotel.id} className="itinerary-item-card bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-3 mb-3 flex-nowrap">
+                        <div className="flex-1 min-w-0">
                           <div className="font-semibold text-gray-900 text-lg mb-1">
                             {hotel.hotelName}
                           </div>
@@ -3101,7 +3102,7 @@ export default function VacationTracker() {
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-shrink-0">
                           <button
                             onClick={() => startEdit(hotel)}
                             className="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
@@ -3169,7 +3170,7 @@ export default function VacationTracker() {
                             )}
                             {activity.notes && <div className="text-sm text-gray-600 mt-2 italic">{activity.notes}</div>}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-shrink-0">
                             <button onClick={() => startEdit(activity)} className="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
                               <Edit2 className="w-5 h-5" />
                             </button>
@@ -3213,7 +3214,7 @@ export default function VacationTracker() {
                               <span className="text-xs font-medium text-blue-400 bg-black px-2 py-0.5 rounded">Flight</span>
                               <span className="text-sm text-gray-500">{item.departureTime && formatDate(getItemSortDate(item, 'flight'))}</span>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-shrink-0">
                               <button onClick={() => startEdit(item)} className="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"><Edit2 className="w-5 h-5" /></button>
                               <button onClick={() => deleteItem(item.id, 'flight')} className="p-2.5 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"><Trash2 className="w-5 h-5" /></button>
                             </div>
@@ -3235,7 +3236,7 @@ export default function VacationTracker() {
                               <span className="text-xs font-medium text-purple-400 bg-black px-2 py-0.5 rounded">Hotel</span>
                               <span className="text-sm text-gray-500">{formatDate(item.checkInDate)}</span>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-shrink-0">
                               <button onClick={() => startEdit(item)} className="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"><Edit2 className="w-5 h-5" /></button>
                               <button onClick={() => deleteItem(item.id, 'hotel')} className="p-2.5 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"><Trash2 className="w-5 h-5" /></button>
                             </div>
@@ -3257,7 +3258,7 @@ export default function VacationTracker() {
                             </span>
                             <span className="text-sm text-gray-500">{item.date && formatDate(item.date)}</span>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-shrink-0">
                             <button onClick={() => startEdit(item)} className="p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"><Edit2 className="w-5 h-5" /></button>
                             <button onClick={() => deleteItem(item.id, type)} className="p-2.5 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"><Trash2 className="w-5 h-5" /></button>
                           </div>
@@ -3318,7 +3319,8 @@ export default function VacationTracker() {
                   <p className="text-sm text-gray-600 mb-6">Add budget amounts by category. Actual spending is pulled from your itinerary items (flights, hotels, activities with prices).</p>
 
                   {/* Budget list - inline editable rows */}
-                  <div className="space-y-3">
+                  <div className="overflow-x-auto -mx-2 sm:mx-0">
+                  <div className="space-y-3 min-w-[520px]">
                     {/* Header row */}
                     <div className="flex items-center gap-4 py-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                       <div className="flex-1 min-w-0">Category</div>
@@ -3451,6 +3453,7 @@ export default function VacationTracker() {
                         </button>
                       </div>
                     </div>
+                  </div>
                   </div>
 
                   {/* Summary & progress */}
@@ -3630,15 +3633,15 @@ export default function VacationTracker() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="flex items-center justify-around">
+          <div className="flex items-center justify-around flex-nowrap">
             <button
               onClick={() => {
                 setActiveTab('trips');
                 setCurrentTrip(null);
               }}
-              className={`flex-1 flex flex-col items-center py-3 transition-colors ${
+              className={`flex-1 flex flex-col items-center justify-center py-3 transition-colors min-w-0 ${
                 activeTab === 'trips' && !currentTrip 
                   ? 'text-indigo-600 dark:text-indigo-400' 
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
